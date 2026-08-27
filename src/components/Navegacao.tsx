@@ -13,6 +13,15 @@ import { usePathname } from 'next/navigation'
  * mouse, e uma barra no rodapé de uma tela de 15 polegadas fica longe de
  * tudo. Alternar por CSS, e não por JavaScript, evita o salto visível que a
  * detecção de largura no cliente causa no primeiro render.
+ *
+ * As duas ficam montadas ao mesmo tempo — o CSS esconde uma, mas o navegador
+ * tem as duas. Por isso os links não fazem prefetch: cada um deles seria
+ * buscado duas vezes, sem ninguém ter clicado, e são justamente os links das
+ * telas mais caras (painel e relatórios fazem sete consultas cada). Medido em
+ * produção: vinte e cinco requisições para abrir uma tela. O prefetch no hover
+ * continua valendo, e aí o usuário já disse para onde quer ir; no celular não
+ * há hover, e o custo vai a zero. O que segura a sensação de rapidez é o
+ * loading.tsx, que aparece na hora do toque.
  */
 
 type Item = { href: string; rotulo: string; icone: React.ReactNode }
@@ -124,6 +133,7 @@ export function BarraInferior({ ehGestor }: { ehGestor: boolean }) {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                prefetch={false}
                 aria-current={ativo ? 'page' : undefined}
                 className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold tracking-wide transition-colors ${
                   ativo ? 'text-fazer' : 'text-slate-400 hover:text-slate-600'
@@ -161,6 +171,7 @@ export function BarraLateral({ ehGestor, nome }: { ehGestor: boolean; nome: stri
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  prefetch={false}
                   aria-current={ativo ? 'page' : undefined}
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold transition-colors ${
                     ativo ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'
