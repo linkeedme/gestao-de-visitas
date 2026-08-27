@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, isNull, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { db as bancoPadrao, usuario, visita, type Visita } from '@/lib/db'
 import type * as schema from '@/lib/db/schema'
@@ -157,11 +157,20 @@ export async function reagendar(
   })
 }
 
+/**
+ * A fila do sincronismo: o que deveria estar no CRM e ainda não está.
+ *
+ * Visita sem `zapleUserId` fica de fora porque nunca vai virar card — o
+ * responsável não é atendente no Zaple, e o sincronizador desiste dela logo na
+ * entrada. Contá-la seria transformar uma decisão de projeto em pendência: o
+ * alarme "fora do CRM" nunca zeraria, e um alarme que não zera é um alarme que
+ * o gestor aprende a ignorar.
+ */
 export async function listarNaoSincronizadas(db: BancoVisita): Promise<Visita[]> {
   return db
     .select()
     .from(visita)
-    .where(isNull(visita.sincronizadoEm))
+    .where(and(isNull(visita.sincronizadoEm), isNotNull(visita.zapleUserId)))
     .orderBy(asc(visita.criadaEm))
 }
 

@@ -255,6 +255,15 @@ describe('fila de sincronismo', () => {
     expect(fila).toHaveLength(1)
   })
 
+  it('não enfileira visita de quem não é atendente no CRM', async () => {
+    // Gestor sem cadastro de agente no Zaple: a visita dele nunca vira card,
+    // por decisão de projeto. Enfileirá-la é prometer um envio que não existe —
+    // o alarme "fora do CRM" nunca zeraria e o gestor pararia de olhar para ele.
+    await criarVisita(banco.db, entrada({ zapleUserId: null }))
+
+    expect(await listarNaoSincronizadas(banco.db)).toHaveLength(0)
+  })
+
   it('sai da fila ao ser marcada, guardando o card', async () => {
     const v = await criarVisita(banco.db, entrada())
     const CARD = '44444444-4444-4444-4444-444444444444'
