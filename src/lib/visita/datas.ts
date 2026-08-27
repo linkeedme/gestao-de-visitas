@@ -33,3 +33,56 @@ export function somarDias(data: string, dias: number): string {
   d.setUTCDate(d.getUTCDate() + dias)
   return d.toISOString().slice(0, 10)
 }
+
+/**
+ * A segunda-feira da semana daquela data.
+ *
+ * A semana começa na segunda porque é a semana comercial de quem vende:
+ * alinhar a grade pelo domingo colocaria o fim de semana no meio do
+ * raciocínio de planejamento.
+ *
+ * O `+ 6` antes do resto existe por causa de `getUTCDay()`, que devolve 0
+ * para domingo. Sem ele, domingo recuaria zero dias e abriria uma semana
+ * própria, deixando a grade com uma coluna órfã.
+ */
+export function inicioDaSemana(data: string): string {
+  const [ano, mes, dia] = data.split('-').map(Number)
+  const d = new Date(Date.UTC(ano, mes - 1, dia))
+  const desdeSegunda = (d.getUTCDay() + 6) % 7
+  return somarDias(data, -desdeSegunda)
+}
+
+/** O dia 1 daquele mês. Recorte de string: a data já é só uma data. */
+export function inicioDoMes(data: string): string {
+  return `${data.slice(0, 7)}-01`
+}
+
+/**
+ * O último dia daquele mês.
+ *
+ * `Date.UTC(ano, mes, 0)` é o dia zero do mês seguinte, que o próprio Date
+ * resolve como o último dia deste — e acerta fevereiro bissexto sem tabela
+ * nenhuma. Note que `mes` aqui é 1-based e não leva o `- 1` de costume,
+ * justamente porque a conta quer o mês seguinte.
+ */
+export function fimDoMes(data: string): string {
+  const [ano, mes] = data.split('-').map(Number)
+  return new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10)
+}
+
+/**
+ * Todos os dias do intervalo, inclusivo nas duas pontas.
+ *
+ * É a peça que a grade da semana, a grade do mês e o preenchimento de dias
+ * vazios compartilham — um dia sem visita precisa existir na lista para
+ * aparecer vazio na tela em vez de sumir dela.
+ *
+ * A comparação é entre strings de propósito: 'AAAA-MM-DD' ordena
+ * lexicograficamente igual à ordem cronológica, e comparar assim evita
+ * construir um Date por iteração.
+ */
+export function diasEntre(de: string, ate: string): string[] {
+  const dias: string[] = []
+  for (let d = de; d <= ate; d = somarDias(d, 1)) dias.push(d)
+  return dias
+}
