@@ -29,6 +29,15 @@ function conectar(): Conexao {
     // localmente, nunca contra um Postgres de verdade.
     max: Number(process.env.DB_POOL_MAX ?? 3),
     idle_timeout: 20,
+    // O teto que faltava, e o mais caro de não ter: os timeouts abaixo viajam
+    // no handshake, então uma conexão que nunca se estabelece nunca os recebe.
+    // Sem isto o `await` fica pendurado até o teto da Vercel — 300 segundos.
+    // Observado em produção: um soluço do banco às 10:53 travou quatro
+    // requisições do painel e uma de relatórios por cinco minutos cada,
+    // segurando conexões e realimentando a fila. Uma conexão saudável leva
+    // 250ms; a que não vier em 10s não vem mais, e falhar rápido devolve à
+    // pessoa uma tela com recado em vez de cinco minutos de espera.
+    connect_timeout: 10,
     connection: {
       // Uma consulta que passa de 15s aqui não está lenta, está presa: as
       // telas leem tabelas pequenas e por índice. Sem teto, ela ocupa uma das
