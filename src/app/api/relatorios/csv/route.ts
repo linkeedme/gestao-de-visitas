@@ -1,7 +1,8 @@
 import { exigirGestor } from '@/lib/auth/atual'
 import { db } from '@/lib/visita/repositorio'
 import { listarParaAuditoria } from '@/lib/visita/relatorios'
-import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
+import { hoje, formatarDia } from '@/lib/visita/datas'
+import { intervaloDoFiltro } from '@/lib/visita/periodo'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 
 const STATUS: Record<string, string> = {
@@ -28,11 +29,27 @@ export async function GET(req: Request) {
   await exigirGestor()
   const url = new URL(req.url)
 
-  const ate = url.searchParams.get('ate') ?? hoje()
-  const de = url.searchParams.get('de') ?? somarDias(ate, -29)
+  // A mesma leitura da tela, para a planilha nunca discordar do que está na
+  // frente do gestor quando ele clica em baixar.
+  const { de, ate } = intervaloDoFiltro(
+    {
+      de: url.searchParams.get('de') ?? undefined,
+      ate: url.searchParams.get('ate') ?? undefined,
+      periodo: url.searchParams.get('periodo') ?? undefined,
+    },
+    hoje()
+  )
   const usuarioId = url.searchParams.get('usuarioId') ?? undefined
 
-  const visitas = await listarParaAuditoria(db, { de, ate, usuarioId })
+  // Sem isto, o gestor filtra "Canceladas" na tela, baixa a planilha, recebe
+  // tudo, e conclui que o download está quebrado.
+  const statusPedido = url.searchParams.get('status')
+  const status =
+    statusPedido && statusPedido in STATUS
+      ? (statusPedido as 'a_fazer' | 'realizada' | 'cancelada' | 'reagendada')
+      : undefined
+
+  const visitas = await listarParaAuditoria(db, { de, ate, usuarioId, status })
 
   const cabecalho = [
     'Data',

@@ -4,6 +4,8 @@ import {
   criarVisita,
   buscarVisita,
   listarDoDia,
+  listarDoPeriodo,
+  contarPorDia,
   mudarStatus,
   reagendar,
   listarNaoSincronizadas,
@@ -283,5 +285,120 @@ describe('fila de sincronismo', () => {
     const depois = await buscarVisita(banco.db, v.id)
 
     expect(depois?.cardId).toBe(CARD)
+  })
+})
+
+describe('listarDoPeriodo', () => {
+  it('inclui as duas bordas e nada fora delas', async () => {
+    await criarVisita(banco.db, entrada({ data: '2026-08-23' }))
+    await criarVisita(banco.db, entrada({ data: '2026-08-24' }))
+    await criarVisita(banco.db, entrada({ data: '2026-08-30' }))
+    await criarVisita(banco.db, entrada({ data: '2026-08-31' }))
+
+    const semana = await listarDoPeriodo(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(semana.map((v) => v.data)).toEqual(['2026-08-24', '2026-08-30'])
+  })
+
+  it('atravessa a virada de mes', async () => {
+    await criarVisita(banco.db, entrada({ data: '2026-08-31' }))
+    await criarVisita(banco.db, entrada({ data: '2026-09-01' }))
+
+    const semana = await listarDoPeriodo(banco.db, { de: '2026-08-31', ate: '2026-09-06' })
+
+    expect(semana).toHaveLength(2)
+  })
+
+  it('traz o nome do vendedor junto', async () => {
+    await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+
+    const [v] = await listarDoPeriodo(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(v.vendedor).toBe('Vendedor de Teste')
+  })
+
+  it('sem usuarioId traz a equipe inteira; com usuarioId, so aquela pessoa', async () => {
+    const outro = await criarOutroUsuario(banco.db, '44444444-4444-4444-4444-444444444444')
+    await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    await criarVisita(
+      banco.db,
+      entrada({ data: '2026-08-25', usuarioId: outro.id, zapleUserId: outro.zapleUserId })
+    )
+
+    const todos = await listarDoPeriodo(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+    const so = await listarDoPeriodo(banco.db, { de: '2026-08-24', ate: '2026-08-30', usuarioId })
+
+    expect(todos).toHaveLength(2)
+    expect(so).toHaveLength(1)
+    expect(so[0].usuarioId).toBe(usuarioId)
+  })
+
+  it('devolve vazio quando nao ha visita no periodo, em vez de estourar', async () => {
+    const vazio = await listarDoPeriodo(banco.db, { de: '2026-01-01', ate: '2026-01-07' })
+
+    expect(vazio).toEqual([])
+  })
+})
+
+describe('contarPorDia', () => {
+  it('soma os quatro status por dia', async () => {
+    const aFazer = await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    const feita = await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    const morta = await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    await mudarStatus(banco.db, feita.id, 'realizada', 'conversamos sobre o pedido novo')
+    await mudarStatus(banco.db, morta.id, 'cancelada')
+    expect(aFazer.status).toBe('a_fazer')
+
+    const [dia] = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(dia).toMatchObject({
+      data: '2026-08-25',
+      aFazer: 1,
+      realizadas: 1,
+      canceladas: 1,
+      reagendadas: 0,
+    })
+  })
+
+  it('conta o reagendamento nos dois dias: o que fechou e o que abriu', async () => {
+    const v = await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    await reagendar(banco.db, v.id, '2026-08-28')
+
+    const dias = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(dias).toHaveLength(2)
+    expect(dias[0]).toMatchObject({ data: '2026-08-25', reagendadas: 1, aFazer: 0 })
+    expect(dias[1]).toMatchObject({ data: '2026-08-28', reagendadas: 0, aFazer: 1 })
+  })
+
+  it('omite o dia sem visita - quem monta a grade preenche com zero', async () => {
+    await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+
+    const dias = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(dias.map((d) => d.data)).toEqual(['2026-08-25'])
+  })
+
+  it('devolve os dias em ordem cronologica', async () => {
+    await criarVisita(banco.db, entrada({ data: '2026-08-28' }))
+    await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    await criarVisita(banco.db, entrada({ data: '2026-08-30' }))
+
+    const dias = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30' })
+
+    expect(dias.map((d) => d.data)).toEqual(['2026-08-25', '2026-08-28', '2026-08-30'])
+  })
+
+  it('respeita o filtro de vendedor', async () => {
+    const outro = await criarOutroUsuario(banco.db, '55555555-5555-5555-5555-555555555555')
+    await criarVisita(banco.db, entrada({ data: '2026-08-25' }))
+    await criarVisita(
+      banco.db,
+      entrada({ data: '2026-08-25', usuarioId: outro.id, zapleUserId: outro.zapleUserId })
+    )
+
+    const [dia] = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30', usuarioId })
+
+    expect(dia.aFazer).toBe(1)
   })
 })
