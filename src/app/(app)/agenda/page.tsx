@@ -11,6 +11,7 @@ import {
 } from '@/lib/visita/agenda'
 import { ListaDoDia } from './ListaDoDia'
 import { GradeDaSemana } from './GradeDaSemana'
+import { SemanaNoCelular } from './SemanaNoCelular'
 import { GradeDoMes } from './GradeDoMes'
 
 export const dynamic = 'force-dynamic'
@@ -197,13 +198,24 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
       {v === 'dia' && <ListaDoDia visitas={visitas} mostrarVendedor={vendoTodos} />}
 
       {v === 'semana' && (
-        <GradeDaSemana
-          dias={diasEntre(de, ate)}
-          visitas={visitas}
-          hojeISO={hojeISO}
-          mostrarVendedor={vendoTodos}
-          linkDoDia={(d) => link({ data: d, vista: 'dia' })}
-        />
+        <>
+          <GradeDaSemana
+            dias={diasEntre(de, ate)}
+            visitas={visitas}
+            hojeISO={hojeISO}
+            mostrarVendedor={vendoTodos}
+            linkDoDia={(d) => link({ data: d, vista: 'dia' })}
+          />
+          {/* O link da faixa mantém a visão em 'semana': tocar num dia troca
+              o dia mostrado, não tira o vendedor da semana em que ele está. */}
+          <SemanaNoCelular
+            dias={diasEntre(de, ate)}
+            visitas={visitas}
+            diaAtivo={dia}
+            mostrarVendedor={vendoTodos}
+            linkDoDia={(d) => link({ data: d, vista: 'semana' })}
+          />
+        </>
       )}
 
       {v === 'mes' && (

@@ -3,16 +3,20 @@ import type { VisitaDoDia } from '@/lib/visita/repositorio'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 
 /**
- * A semana inteira numa tela.
+ * A semana inteira numa tela — só no notebook.
  *
- * Ela não fecha visita: tocar num card abre a visita, tocar no dia abre o
+ * Sete colunas lado a lado precisam de largura: no celular cada uma ficaria
+ * com menos de cinquenta pixels e o nome do cliente viraria uma letra por
+ * linha. Lá quem atende é o `SemanaNoCelular`, com faixa de dias e lista.
+ *
+ * As duas se alternam por CSS, não por JavaScript: detectar largura no
+ * cliente causa um salto visível no primeiro render, como `Navegacao.tsx`
+ * já documenta.
+ *
+ * Esta não fecha visita: tocar num cartão abre a visita, tocar no dia abre o
  * dia. As ações de status vivem num lugar só, o `ListaDoDia`, e espalhá-las
- * por mais telas garantiria que uma correção futura entrasse em uma e não
- * nas outras.
- *
- * A grade de sete colunas e a lista do celular renderizam os mesmos dados e
- * se alternam por CSS, não por JavaScript: detectar largura no cliente causa
- * um salto visível no primeiro render, como `Navegacao.tsx` já documenta.
+ * por mais telas garantiria que uma correção futura entrasse em uma e não nas
+ * outras.
  */
 
 const FAIXA: Record<string, string> = {
@@ -41,51 +45,25 @@ export function GradeDaSemana({
   for (const v of visitas) porDia.get(v.data)?.push(v)
 
   return (
-    <>
-      <div className="hidden grid-cols-7 items-start gap-2 lg:grid">
-        {dias.map((d, i) => {
-          const doDia = porDia.get(d) ?? []
-          return (
-            <div key={d} className="flex flex-col gap-1.5">
-              <Cabecalho
-                href={linkDoDia(d)}
-                curto={CURTOS[i]}
-                numero={Number(d.slice(8, 10))}
-                n={doDia.length}
-                ehHoje={d === hojeISO}
-              />
-              {doDia.map((v) => (
-                <Card key={v.id} v={v} mostrarVendedor={mostrarVendedor} />
-              ))}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* No celular, sete colunas dariam menos de 50px cada e o nome do
-          cliente viraria uma letra por linha. A mesma leitura vira lista. */}
-      <div className="flex flex-col gap-4 lg:hidden">
-        {dias.map((d, i) => {
-          const doDia = porDia.get(d) ?? []
-          return (
-            <section key={d} className="flex flex-col gap-1.5">
-              <Cabecalho
-                href={linkDoDia(d)}
-                curto={CURTOS[i]}
-                numero={Number(d.slice(8, 10))}
-                n={doDia.length}
-                ehHoje={d === hojeISO}
-              />
-              {doDia.length === 0 ? (
-                <p className="px-1 text-sm text-slate-400">Nada agendado.</p>
-              ) : (
-                doDia.map((v) => <Card key={v.id} v={v} mostrarVendedor={mostrarVendedor} />)
-              )}
-            </section>
-          )
-        })}
-      </div>
-    </>
+    <div className="hidden grid-cols-7 items-start gap-2 lg:grid">
+      {dias.map((d, i) => {
+        const doDia = porDia.get(d) ?? []
+        return (
+          <div key={d} className="flex flex-col gap-1.5">
+            <Cabecalho
+              href={linkDoDia(d)}
+              curto={CURTOS[i]}
+              numero={Number(d.slice(8, 10))}
+              n={doDia.length}
+              ehHoje={d === hojeISO}
+            />
+            {doDia.map((v) => (
+              <Card key={v.id} v={v} mostrarVendedor={mostrarVendedor} />
+            ))}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
