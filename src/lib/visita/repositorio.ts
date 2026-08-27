@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, isNull, lte, ne } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, isNull, lte, ne } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { db as bancoPadrao, usuario, visita, type Visita } from '@/lib/db'
 import type * as schema from '@/lib/db/schema'
@@ -177,10 +177,12 @@ export async function marcarCard(db: BancoVisita, id: string, cardId: string): P
 export type LinhaPainel = {
   usuarioId: string
   vendedor: string
+  papel: 'vendedor' | 'gestor'
   aFazer: number
   realizadas: number
   canceladas: number
   reagendadas: number
+  total: number
 }
 
 /**
@@ -199,31 +201,36 @@ export async function resumoPorVendedor(
     .select({
       usuarioId: visita.usuarioId,
       vendedor: usuario.nome,
+      papel: usuario.papel,
       status: visita.status,
       total: count(),
     })
     .from(visita)
     .innerJoin(usuario, eq(usuario.id, visita.usuarioId))
-    // Só vendedores. O painel mede a força de vendas em campo: uma visita que
-    // um gestor fez para acompanhar a equipe não é produtividade de vendedor,
-    // e contá-la inflaria o número de quem administra o sistema.
-    .where(and(gte(visita.data, de), lte(visita.data, ate), eq(usuario.papel, 'vendedor')))
-    .groupBy(visita.usuarioId, usuario.nome, visita.status)
+    // Todo mundo que fez visita entra, gestor incluído — o papel diz quem
+    // administra o sistema, não quem vai a campo. Numa equipe pequena o
+    // supervisor visita cliente também, e esconder o trabalho dele deixaria o
+    // painel mentindo por omissão. Quem é gestor aparece marcado como tal.
+    .where(and(gte(visita.data, de), lte(visita.data, ate)))
+    .groupBy(visita.usuarioId, usuario.nome, usuario.papel, visita.status)
 
   const porVendedor = new Map<string, LinhaPainel>()
   for (const l of linhas) {
     const atual = porVendedor.get(l.usuarioId) ?? {
       usuarioId: l.usuarioId,
       vendedor: l.vendedor,
+      papel: l.papel,
       aFazer: 0,
       realizadas: 0,
       canceladas: 0,
       reagendadas: 0,
+      total: 0,
     }
     if (l.status === 'a_fazer') atual.aFazer = l.total
     if (l.status === 'realizada') atual.realizadas = l.total
     if (l.status === 'cancelada') atual.canceladas = l.total
     if (l.status === 'reagendada') atual.reagendadas = l.total
+    atual.total += l.total
     porVendedor.set(l.usuarioId, atual)
   }
 
@@ -348,4 +355,23 @@ export async function historicoDoContato(
     .where(and(eq(visita.contatoId, contatoId), ne(visita.id, exceto)))
     .orderBy(desc(visita.data))
     .limit(20)
+}
+
+/**
+ * O que está agendado depois de hoje.
+ *
+ * O painel olha para um período que termina hoje, o que faz sentido para o
+ * que já aconteceu. Mas visita a fazer vive no futuro: sem esta conta, o
+ * painel diria "4 a fazer" com oito na agenda, e o gestor planejaria a
+ * semana com metade do trabalho invisível.
+ */
+export async function contarAgendadasAdiante(
+  db: BancoVisita,
+  depoisDe: string
+): Promise<number> {
+  const [r] = await db
+    .select({ n: count() })
+    .from(visita)
+    .where(and(gt(visita.data, depoisDe), eq(visita.status, 'a_fazer')))
+  return r?.n ?? 0
 }
