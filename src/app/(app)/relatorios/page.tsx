@@ -108,6 +108,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
           <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
             Precisa de atenção
           </h2>
+          <div className="grid gap-2 lg:grid-cols-2">
 
           {vencidas.length > 0 && (
             <Alerta
@@ -148,6 +149,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
               detalhe={emRisco.slice(0, 3).map((c) => `${c.contatoNome} · ${c.diasSem} dias`)}
             />
           )}
+          </div>
         </section>
       )}
 
@@ -162,6 +164,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
           </p>
         )}
 
+        <div className="grid gap-2 lg:grid-cols-2">
         {kpis.map((k) => {
           const fechadas = k.realizadas + k.canceladas
           const conclusao = fechadas === 0 ? 0 : Math.round((k.realizadas / fechadas) * 100)
@@ -207,6 +210,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
             </article>
           )
         })}
+        </div>
       </section>
 
       <section className="flex flex-col gap-2">
@@ -251,6 +255,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
           </p>
         )}
 
+        <div className="grid gap-2 lg:grid-cols-2">
         {visitas.map((v) => {
           const s = STATUS[v.status]
           return (
@@ -283,6 +288,7 @@ export default async function Relatorios({ searchParams }: PageProps<'/relatorio
             </Link>
           )
         })}
+        </div>
       </section>
     </div>
   )

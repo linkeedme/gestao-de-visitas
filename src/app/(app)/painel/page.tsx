@@ -96,7 +96,7 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
         </Link>
       )}
 
-      <section className="grid grid-cols-2 gap-3">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {COLUNAS.map((c) => (
           <div key={c.chave} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
             <div className="flex items-center gap-2">
@@ -132,6 +132,7 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
         <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
           Por colaborador
         </h2>
+        <div className="grid gap-2 lg:grid-cols-2">
 
         {linhas.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
@@ -176,6 +177,7 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
             </dl>
           </article>
         ))}
+        </div>
       </section>
 
       {pendentes.length > 0 && (

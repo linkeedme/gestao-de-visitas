@@ -40,9 +40,11 @@ export default async function Admin() {
             Nenhum vendedor cadastrado. Só vendedores aparecem no painel.
           </p>
         )}
-        {vendedores.map((u) => (
-          <CardUsuario key={u.id} usuario={u} agentes={agentes} souEu={u.id === eu.id} />
-        ))}
+        <div className="grid gap-2 lg:grid-cols-2">
+          {vendedores.map((u) => (
+            <CardUsuario key={u.id} usuario={u} agentes={agentes} souEu={u.id === eu.id} />
+          ))}
+        </div>
       </section>
 
       <section className="flex flex-col gap-2">
@@ -53,9 +55,11 @@ export default async function Admin() {
           Enxergam o painel e as visitas de todo mundo. As visitas que eles fazem não contam
           nas métricas de vendedor.
         </p>
-        {gestores.map((u) => (
-          <CardUsuario key={u.id} usuario={u} agentes={agentes} souEu={u.id === eu.id} />
-        ))}
+        <div className="grid gap-2 lg:grid-cols-2">
+          {gestores.map((u) => (
+            <CardUsuario key={u.id} usuario={u} agentes={agentes} souEu={u.id === eu.id} />
+          ))}
+        </div>
       </section>
 
       <section className="flex flex-col gap-2">

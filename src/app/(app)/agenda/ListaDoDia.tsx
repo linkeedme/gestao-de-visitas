@@ -113,6 +113,7 @@ export function ListaDoDia({
               </div>
             )}
 
+            <div className="grid gap-2 lg:grid-cols-2">
             {daSecao.map((v) => {
               const aberta = v.status === 'a_fazer'
               return (
@@ -230,6 +231,7 @@ export function ListaDoDia({
                 </article>
               )
             })}
+            </div>
           </section>
         )
       })}
