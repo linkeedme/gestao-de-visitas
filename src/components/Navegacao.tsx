@@ -72,23 +72,13 @@ function montarItens(ehGestor: boolean): Item[] {
     itens.push(
       {
         href: '/painel',
-        rotulo: 'Painel',
+        rotulo: 'Gestão',
         icone: (
           <Icone>
             <path d="M3 20h18" />
             <rect x="5" y="12" width="3.5" height="8" rx="1" />
             <rect x="10.25" y="7" width="3.5" height="13" rx="1" />
             <rect x="15.5" y="15" width="3.5" height="5" rx="1" />
-          </Icone>
-        ),
-      },
-      {
-        href: '/relatorios',
-        rotulo: 'Relatórios',
-        icone: (
-          <Icone>
-            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
-            <path d="M14 3v5h5M9 13h6M9 17h4" />
           </Icone>
         ),
       },
