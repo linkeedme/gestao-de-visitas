@@ -1863,4 +1863,7 @@ git commit -m "feat(agenda): visão de mês com contadores por dia"
 | 7 — testes | Tarefas 1–5, sempre no primeiro passo |
 | 8 — arquivos tocados | tabela de estrutura no topo |
 
-**Divergência registrada:** a spec (seção 4.2, regra 2) diz que só `de` completa com `ate = hojeISO`. O plano refina: quando o `de` está no futuro, `ate` recebe o próprio `de`, porque completar com hoje deixaria o intervalo invertido. O teste "mostra só aquele dia quando o de está no futuro e não veio ate" fixa esse comportamento.
+**Divergências registradas** (as duas em `intervaloDoFiltro`, as duas fixadas por teste):
+
+1. A spec (4.2, regra 2) diz que só `de` completa com `ate = hojeISO`. Quando o `de` está no futuro, `ate` recebe o próprio `de` — completar com hoje deixaria o intervalo invertido. Teste: "mostra só aquele dia quando o de está no futuro e não veio ate".
+2. A spec (4.2, regra 3) diz que formato inválido cai para os últimos 30 dias. Na implementação, **só a metade inválida é descartada** e a outra continua valendo: `?de=2026-02-30&ate=2026-08-03` devolve 05/07 a 03/08, não os últimos 30 dias. Jogar fora o `ate` que o gestor digitou certo por causa do `de` que ele digitou errado seria pior que o erro dele. A queda para 30 dias fica para quando não sobra nada utilizável — as duas datas tortas, ou `de` depois de `ate`. Testes: "descarta a data que não existe no calendário e honra a outra" e "cai nos últimos 30 dias quando as duas datas são impossíveis".
