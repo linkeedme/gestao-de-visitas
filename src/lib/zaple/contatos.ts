@@ -1,4 +1,4 @@
-import { zapleGet, zaplePost } from './client'
+import { zapleGet, zaplePost, zaplePut } from './client'
 import { ZapleError } from './erros'
 import type { Contato } from './tipos'
 
@@ -59,10 +59,34 @@ export async function buscarContatoPorTelefone(telefone: string): Promise<Contat
   }
 }
 
-export async function criarContato(entrada: { nome: string; telefone: string }): Promise<Contato> {
+export async function criarContato(entrada: {
+  nome: string
+  telefone: string
+  /** Campos da ficha do CRM, pela CHAVE do campo. Todos opcionais. */
+  camposPersonalizados?: Record<string, string>
+}): Promise<Contato> {
   const c = await zaplePost<ContatoApi>('/core/v1/contact', {
     name: entrada.nome,
     phoneNumber: normalizarTelefone(entrada.telefone),
   })
+
+  const preenchidos = Object.entries(entrada.camposPersonalizados ?? {}).filter(
+    ([, v]) => v.trim() !== ''
+  )
+
+  if (preenchidos.length > 0) {
+    // Em duas chamadas porque o POST de contato IGNORA `customFields` — aceita
+    // o corpo, responde 200, e grava só nome e telefone. Verificado contra
+    // produção em 2026-08-27: o campo volta vazio na releitura.
+    //
+    // O PUT exige o array `fields` declarando o que muda, como o card v3, e
+    // indexa por CHAVE do campo, não por id. Mandar o id passa sem erro e não
+    // grava nada — a pior combinação possível.
+    await zaplePut(`/core/v1/contact/${c.id}`, {
+      fields: ['customFields'],
+      customFields: Object.fromEntries(preenchidos.map(([k, v]) => [k, v.trim()])),
+    })
+  }
+
   return paraContato(c)
 }

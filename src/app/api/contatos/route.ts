@@ -27,6 +27,10 @@ export async function GET(req: Request) {
 const NovoContato = z.object({
   nome: z.string().min(2),
   telefone: z.string().min(10),
+  // Nada aqui é obrigatório: é prospecção na rua, e o vendedor raramente
+  // sabe o CNPJ de quem acabou de conhecer. Exigir faria ele desistir do
+  // cadastro e a visita nascer sem cliente.
+  camposPersonalizados: z.record(z.string(), z.string()).optional(),
 })
 
 export async function POST(req: Request) {

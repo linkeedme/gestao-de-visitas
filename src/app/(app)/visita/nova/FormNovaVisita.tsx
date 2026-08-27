@@ -5,6 +5,7 @@ import type { Contato } from '@/lib/zaple/tipos'
 import { erroDaResposta } from '@/lib/api/cliente'
 import { hoje } from '@/lib/visita/datas'
 import { TIPOS_VISITA } from '@/lib/visita/tipos'
+import { CadastrarCliente } from './CadastrarCliente'
 
 /**
  * A visita é sempre de quem está criando.
@@ -20,7 +21,6 @@ export function FormNovaVisita() {
   const [achados, setAchados] = useState<Contato[] | null>(null)
   const [escolhido, setEscolhido] = useState<Contato | null>(null)
   const [cadastrando, setCadastrando] = useState(false)
-  const [telefoneNovo, setTelefoneNovo] = useState('')
   const [titulo, setTitulo] = useState('')
   const [prazo, setPrazo] = useState('')
   const [tipo, setTipo] = useState('prospeccao')
@@ -47,27 +47,6 @@ export function FormNovaVisita() {
       setAchados((await r.json()).contatos)
     } catch {
       setErro('Sem conexão. Verifique a internet.')
-    } finally {
-      setOcupado(false)
-    }
-  }
-
-  async function cadastrarContato() {
-    setOcupado(true)
-    setErro(null)
-    try {
-      const r = await fetch('/api/contatos', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nome: busca.trim(), telefone: telefoneNovo }),
-      })
-      if (!r.ok) {
-        setErro(await erroDaResposta(r, 'Não foi possível cadastrar o cliente'))
-        return
-      }
-      escolher((await r.json()).contato)
-    } catch {
-      setErro('Sem conexão. O cliente não foi cadastrado.')
     } finally {
       setOcupado(false)
     }
@@ -170,38 +149,29 @@ export function FormNovaVisita() {
               </ul>
             )}
 
-            {achados && achados.length === 0 && !cadastrando && (
+            {/* O atalho aparece assim que há uma busca, não só quando ela
+                volta vazia: numa prospecção o vendedor já sabe que o cliente
+                não existe, e obrigá-lo a buscar antes é um passo à toa. */}
+            {!cadastrando && busca.trim().length >= 2 && (
               <button
                 type="button"
                 onClick={() => setCadastrando(true)}
-                className="self-start text-sm text-slate-600 underline"
+                className="self-start rounded-xl px-3 py-2 text-sm font-semibold text-fazer ring-1 ring-inset ring-fazer/40 transition-colors hover:bg-fazer/10"
               >
-                Nenhum encontrado. Cadastrar &ldquo;{busca.trim()}&rdquo; como novo cliente
+                {achados && achados.length === 0
+                  ? `Nenhum encontrado. Cadastrar "${busca.trim()}"`
+                  : `Cadastrar "${busca.trim()}" como cliente novo`}
               </button>
             )}
 
             {cadastrando && (
-              <div className="flex flex-col gap-2 rounded-lg border border-slate-300 bg-white p-3">
-                <p className="text-sm text-slate-600">
-                  Cadastrando <strong>{busca.trim()}</strong>. Falta o celular:
-                </p>
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  value={telefoneNovo}
-                  onChange={(e) => setTelefoneNovo(e.target.value)}
-                  placeholder="(21) 99999-9999"
-                  className="rounded-lg border border-slate-300 px-4 py-3"
-                />
-                <button
-                  type="button"
-                  onClick={cadastrarContato}
-                  disabled={ocupado || telefoneNovo.replace(/\D/g, '').length < 10}
-                  className="rounded-lg bg-slate-700 px-4 py-2 text-white disabled:opacity-50"
-                >
-                  {ocupado ? 'Cadastrando…' : 'Cadastrar cliente'}
-                </button>
-              </div>
+              <CadastrarCliente
+                nomeSugerido={busca.trim()}
+                ocupado={ocupado}
+                onCadastrado={(c) => escolher(c)}
+                onCancelar={() => setCadastrando(false)}
+                onErro={setErro}
+              />
             )}
           </>
         )}
