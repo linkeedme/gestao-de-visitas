@@ -125,14 +125,14 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
             <Link
               href={link({ data: passoDaVista(v, dia, -1) })}
               aria-label="Período anterior"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
             >
               ‹
             </Link>
             <Link
               href={link({ data: passoDaVista(v, dia, 1) })}
               aria-label="Período seguinte"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
             >
               ›
             </Link>
@@ -145,7 +145,9 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
               key={opcao}
               href={link({ vista: opcao })}
               aria-current={opcao === v ? 'page' : undefined}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              // 44px de altura: as abas são o controle mais usado da tela e
+              // ficavam em trinta, abaixo do que o polegar acerta sem mirar.
+              className={`flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors ${
                 opcao === v ? 'bg-white text-asfalto' : 'bg-white/10 text-white/70 hover:bg-white/20'
               }`}
             >
