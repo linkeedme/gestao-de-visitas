@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, isNull, lte, ne } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, isNull, lte, ne, sql } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { db as bancoPadrao, usuario, visita, type Visita } from '@/lib/db'
 import type * as schema from '@/lib/db/schema'
@@ -55,26 +55,44 @@ export async function buscarVisita(db: BancoVisita, id: string): Promise<Visita 
 /** A visita com o nome de quem a leva — o gestor precisa saber de quem é. */
 export type VisitaDoDia = Visita & { vendedor: string }
 
-export async function listarDoDia(
+/**
+ * As visitas de um intervalo, com quem as leva.
+ *
+ * Sem usuarioId a consulta não filtra por vendedor: é o "ver todos" do
+ * gestor. Quem chama decide, porque só a rota conhece o papel de quem pediu.
+ *
+ * O join traz o nome do vendedor junto: na tela "ver a equipe" e na grade da
+ * semana o gestor precisa saber de quem é cada visita, e uma consulta por
+ * linha para descobrir isso seria lenta e desnecessária.
+ */
+export async function listarDoPeriodo(
   db: BancoVisita,
-  opcoes: { data: string; usuarioId?: string }
+  opcoes: { de: string; ate: string; usuarioId?: string }
 ): Promise<VisitaDoDia[]> {
-  // Sem usuarioId a consulta não filtra por vendedor: é o "ver todos" do
-  // gestor. Quem chama decide, porque só a rota conhece o papel de quem pediu.
-  const filtros = [eq(visita.data, opcoes.data)]
+  const filtros = [gte(visita.data, opcoes.de), lte(visita.data, opcoes.ate)]
   if (opcoes.usuarioId) filtros.push(eq(visita.usuarioId, opcoes.usuarioId))
 
-  // O join traz o nome do vendedor junto: na tela "ver a equipe" o gestor
-  // precisa saber de quem é cada visita, e uma consulta por linha para
-  // descobrir isso seria lenta e desnecessária.
   const linhas = await db
     .select({ visita, vendedor: usuario.nome })
     .from(visita)
     .innerJoin(usuario, eq(usuario.id, visita.usuarioId))
     .where(and(...filtros))
-    .orderBy(asc(visita.criadaEm))
+    .orderBy(asc(visita.data), asc(visita.criadaEm))
 
   return linhas.map((l) => ({ ...l.visita, vendedor: l.vendedor }))
+}
+
+/**
+ * Um dia é um intervalo de um dia só.
+ *
+ * Manter as duas consultas separadas — uma com `eq`, outra com `gte`/`lte` —
+ * garantiria que uma correção futura entrasse em uma e não na outra.
+ */
+export async function listarDoDia(
+  db: BancoVisita,
+  opcoes: { data: string; usuarioId?: string }
+): Promise<VisitaDoDia[]> {
+  return listarDoPeriodo(db, { de: opcoes.data, ate: opcoes.data, usuarioId: opcoes.usuarioId })
 }
 
 export async function mudarStatus(
@@ -374,4 +392,47 @@ export async function contarAgendadasAdiante(
     .from(visita)
     .where(and(gt(visita.data, depoisDe), eq(visita.status, 'a_fazer')))
   return r?.n ?? 0
+}
+
+export type ContagemDoDia = {
+  data: string
+  aFazer: number
+  realizadas: number
+  reagendadas: number
+  canceladas: number
+}
+
+/**
+ * Quantas visitas de cada status em cada dia do intervalo.
+ *
+ * A grade do mês precisa de quatro números por célula, não das visitas. Um
+ * mês cheio de uma equipe pequena passa de 300 linhas com relato, descrição e
+ * nome de cliente — trazer tudo isso para desenhar bolinha é trabalho jogado
+ * fora. Agregado, são no máximo 31 linhas de cinco inteiros.
+ *
+ * Devolve só os dias que tiveram visita. Quem monta a grade preenche os
+ * vazios com zero, como `serieDiaria` faz em `relatorios.ts`: um dia sem
+ * visita é informação, e sumir com ele da tela esconderia justamente o buraco
+ * que a visão de mês existe para mostrar.
+ */
+export async function contarPorDia(
+  db: BancoVisita,
+  opcoes: { de: string; ate: string; usuarioId?: string }
+): Promise<ContagemDoDia[]> {
+  const filtros = [gte(visita.data, opcoes.de), lte(visita.data, opcoes.ate)]
+  if (opcoes.usuarioId) filtros.push(eq(visita.usuarioId, opcoes.usuarioId))
+
+  const linhas = await db
+    .select({
+      data: visita.data,
+      aFazer: count(sql`case when ${visita.status} = 'a_fazer' then 1 end`),
+      realizadas: count(sql`case when ${visita.status} = 'realizada' then 1 end`),
+      reagendadas: count(sql`case when ${visita.status} = 'reagendada' then 1 end`),
+      canceladas: count(sql`case when ${visita.status} = 'cancelada' then 1 end`),
+    })
+    .from(visita)
+    .where(and(...filtros))
+    .groupBy(visita.data)
+
+  return linhas.sort((a, b) => a.data.localeCompare(b.data))
 }
