@@ -6,23 +6,22 @@ import {
   contarAgendadasAdiante,
   db,
 } from '@/lib/visita/repositorio'
+import {
+  serieDiaria,
+  porTipo,
+  clientesEmRisco,
+  reagendamentosEmSerie,
+} from '@/lib/visita/relatorios'
 import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
+import { rotuloDoTipo } from '@/lib/visita/tipos'
+import { BarrasPorDia, BarrasPorPessoa, PorTipo, Legenda, CORES } from './Graficos'
 
 export const dynamic = 'force-dynamic'
 
 const PERIODOS = [
-  { dias: 0, rotulo: 'Hoje' },
   { dias: 6, rotulo: '7 dias' },
   { dias: 29, rotulo: '30 dias' },
   { dias: 89, rotulo: '90 dias' },
-] as const
-
-/** As quatro colunas, na ordem em que o gestor lê: o que rendeu primeiro. */
-const COLUNAS = [
-  { chave: 'realizadas', rotulo: 'Realizadas', cor: 'text-feita', faixa: 'bg-feita' },
-  { chave: 'aFazer', rotulo: 'A fazer', cor: 'text-fazer', faixa: 'bg-fazer' },
-  { chave: 'reagendadas', rotulo: 'Reagendadas', cor: 'text-adiada', faixa: 'bg-adiada' },
-  { chave: 'canceladas', rotulo: 'Canceladas', cor: 'text-slate-400', faixa: 'bg-morta' },
 ] as const
 
 export default async function Painel({ searchParams }: PageProps<'/painel'>) {
@@ -34,10 +33,14 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
   const ate = hoje()
   const de = somarDias(ate, -diasValidos)
 
-  const [linhas, pendentes, adiante] = await Promise.all([
+  const [linhas, pendentes, adiante, serie, tipos, emRisco, empurrados] = await Promise.all([
     resumoPorVendedor(db, de, ate),
     listarNaoSincronizadas(db),
     contarAgendadasAdiante(db, ate),
+    serieDiaria(db, de, ate),
+    porTipo(db, de, ate),
+    clientesEmRisco(db, ate, 30),
+    reagendamentosEmSerie(db, de, ate),
   ])
 
   const total = linhas.reduce(
@@ -53,42 +56,70 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
 
   const fechadas = total.realizadas + total.canceladas
   const conclusao = fechadas === 0 ? 0 : Math.round((total.realizadas / fechadas) * 100)
+  const emCampo = serie.filter((d) => d.realizadas > 0).length
+  const mediaDia = emCampo === 0 ? 0 : total.realizadas / emCampo
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">Painel</h1>
-        <p className="text-sm text-slate-500">
-          {diasValidos === 0 ? formatarDia(ate) : `${formatarDia(de)} a ${formatarDia(ate)}`}
-          {total.total > 0 && ` · ${total.total} ${total.total === 1 ? 'visita' : 'visitas'}`}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold">Painel</h1>
+          <p className="text-sm text-slate-500">
+            {formatarDia(de)} a {formatarDia(ate)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {PERIODOS.map((p) => (
+            <Link
+              key={p.dias}
+              href={`/painel?periodo=${p.dias}`}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                p.dias === diasValidos
+                  ? 'bg-asfalto text-white'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {p.rotulo}
+            </Link>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {PERIODOS.map((p) => (
-          <Link
-            key={p.dias}
-            href={`/painel?periodo=${p.dias}`}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-              p.dias === diasValidos
-                ? 'bg-asfalto text-white'
-                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {p.rotulo}
-          </Link>
-        ))}
-      </div>
+      {/* O número que responde à pergunta do gestor antes de qualquer gráfico:
+          quanto de trabalho foi feito. O resto contextualiza. */}
+      <section className="grid gap-3 lg:grid-cols-3">
+        <div className="rounded-2xl bg-asfalto p-5 text-white shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">
+            Visitas realizadas
+          </p>
+          <p className="font-display text-6xl font-semibold leading-none">{total.realizadas}</p>
+          <p className="mt-2 text-sm text-white/70">
+            {mediaDia.toFixed(1)} por dia em campo · {emCampo}{' '}
+            {emCampo === 1 ? 'dia com visita' : 'dias com visita'}
+          </p>
+        </div>
 
-      {/* O período termina hoje, o que serve para o que já aconteceu. Visita a
-          fazer vive no futuro: sem esta linha, o painel mostraria menos
-          trabalho do que existe, e a semana seria planejada às cegas. */}
+        <div className="grid grid-cols-2 gap-3 lg:col-span-2">
+          <Cartao valor={total.aFazer} rotulo="A fazer" cor={CORES.aFazer} />
+          <Cartao valor={total.reagendadas} rotulo="Reagendadas" cor={CORES.reagendadas} />
+          <Cartao valor={total.canceladas} rotulo="Canceladas" cor={CORES.canceladas} />
+          <Cartao
+            valor={`${conclusao}%`}
+            rotulo="Conclusão"
+            cor={CORES.realizadas}
+            ajuda={`${total.realizadas} de ${fechadas} fechadas`}
+          />
+        </div>
+      </section>
+
       {adiante > 0 && (
         <Link
           href={`/agenda?data=${somarDias(ate, 1)}`}
           className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200/70"
         >
-          <span className="font-display text-2xl font-semibold text-fazer">{adiante}</span>
+          <span className="font-display text-2xl font-semibold" style={{ color: CORES.aFazer }}>
+            {adiante}
+          </span>
           <span className="text-sm text-slate-700">
             {adiante === 1 ? 'visita agendada' : 'visitas agendadas'} depois de hoje
             <span className="block text-slate-500">Fora do período acima. Toque para ver.</span>
@@ -96,109 +127,126 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
         </Link>
       )}
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {COLUNAS.map((c) => (
-          <div key={c.chave} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${c.faixa}`} aria-hidden="true" />
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                {c.rotulo}
-              </p>
-            </div>
-            <p className={`font-display text-4xl font-semibold ${c.cor}`}>{total[c.chave]}</p>
-          </div>
-        ))}
-      </section>
-
-      {fechadas > 0 && (
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-              Taxa de conclusão
-            </h2>
-            <span className="font-display text-2xl font-semibold text-feita">{conclusao}%</span>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            {total.realizadas} realizadas de {fechadas} visitas fechadas. Reagendar não conta
-            como fechar.
-          </p>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full bg-feita" style={{ width: `${conclusao}%` }} />
-          </div>
-        </section>
-      )}
-
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-          Por colaborador
-        </h2>
-        <div className="grid gap-2 lg:grid-cols-2">
-
-        {linhas.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
-            Nenhuma visita neste período.
-          </p>
-        )}
-
-        {linhas.map((l) => (
-          <article
-            key={l.usuarioId}
-            className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70"
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-display text-lg font-semibold">{l.vendedor}</h3>
-                {l.papel === 'gestor' && (
-                  <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">
-                    gestor
-                  </span>
-                )}
-              </div>
-              <span className="text-sm text-slate-500">
-                {l.total} {l.total === 1 ? 'visita' : 'visitas'}
-              </span>
-            </div>
-
-            {/* A barra é a divisão real do trabalho dele no período, não enfeite:
-                cada faixa é uma fatia dos quatro status. */}
-            <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100">
-              {COLUNAS.map((c) => (
-                <Faixa key={c.chave} n={l[c.chave]} de={l.total} cor={c.faixa} />
-              ))}
-            </div>
-
-            <dl className="mt-3 grid grid-cols-4 gap-2">
-              {COLUNAS.map((c) => (
-                <div key={c.chave}>
-                  <dd className={`font-display text-2xl font-semibold ${c.cor}`}>{l[c.chave]}</dd>
-                  <dt className="text-xs text-slate-500">{c.rotulo}</dt>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
+      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg font-semibold">Movimento por dia</h2>
+          <Legenda />
         </div>
+        <BarrasPorDia serie={serie} />
       </section>
 
-      {pendentes.length > 0 && (
-        <Link
-          href="/admin"
-          className="flex items-center gap-3 rounded-2xl bg-adiada/10 px-4 py-3 ring-1 ring-adiada/30"
-        >
-          <span className="font-display text-2xl font-semibold text-adiada">
-            {pendentes.length}
-          </span>
-          <span className="text-sm text-slate-700">
-            {pendentes.length === 1 ? 'visita não chegou' : 'visitas não chegaram'} ao CRM.
-            <span className="block text-slate-500">Toque para reprocessar.</span>
-          </span>
-        </Link>
-      )}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+          <h2 className="mb-4 font-display text-lg font-semibold">Por pessoa</h2>
+          <BarrasPorPessoa
+            linhas={linhas.map((l) => ({
+              id: l.usuarioId,
+              nome: l.vendedor,
+              realizadas: l.realizadas,
+              aFazer: l.aFazer,
+              reagendadas: l.reagendadas,
+              canceladas: l.canceladas,
+            }))}
+          />
+        </section>
+
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+          <h2 className="mb-4 font-display text-lg font-semibold">Tipo de visita</h2>
+          <PorTipo fatias={tipos.map((t) => ({ rotulo: rotuloDoTipo(t.tipo), n: t.n }))} />
+        </section>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {empurrados.length > 0 && (
+          <Aviso
+            n={empurrados.length}
+            cor={CORES.reagendadas}
+            titulo={empurrados.length === 1 ? 'cliente empurrado' : 'clientes empurrados'}
+            ajuda="Reagendados duas vezes ou mais."
+            href="/relatorios"
+          />
+        )}
+        {emRisco.length > 0 && (
+          <Aviso
+            n={emRisco.length}
+            cor={CORES.canceladas}
+            titulo={emRisco.length === 1 ? 'cliente sem visita' : 'clientes sem visita'}
+            ajuda="Mais de 30 dias desde a última."
+            href="/relatorios"
+          />
+        )}
+        {pendentes.length > 0 && (
+          <Aviso
+            n={pendentes.length}
+            cor={CORES.reagendadas}
+            titulo={pendentes.length === 1 ? 'visita fora do CRM' : 'visitas fora do CRM'}
+            ajuda="Salvas aqui, ainda não enviadas."
+            href="/admin"
+          />
+        )}
+      </div>
+
+      <Link
+        href="/relatorios"
+        className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
+      >
+        Ver relatórios e exportar planilha
+        <span aria-hidden="true">→</span>
+      </Link>
     </div>
   )
 }
 
-function Faixa({ n, de, cor }: { n: number; de: number; cor: string }) {
-  if (n === 0 || de === 0) return null
-  return <div className={cor} style={{ width: `${(n / de) * 100}%` }} />
+function Cartao({
+  valor,
+  rotulo,
+  cor,
+  ajuda,
+}: {
+  valor: string | number
+  rotulo: string
+  cor: string
+  ajuda?: string
+}) {
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cor }} aria-hidden="true" />
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{rotulo}</p>
+      </div>
+      <p className="font-display text-3xl font-semibold" style={{ color: cor }}>
+        {valor}
+      </p>
+      {ajuda && <p className="text-xs text-slate-400">{ajuda}</p>}
+    </div>
+  )
+}
+
+function Aviso({
+  n,
+  cor,
+  titulo,
+  ajuda,
+  href,
+}: {
+  n: number
+  cor: string
+  titulo: string
+  ajuda: string
+  href: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
+    >
+      <span className="font-display text-2xl font-semibold" style={{ color: cor }}>
+        {n}
+      </span>
+      <span className="min-w-0 text-sm text-slate-700">
+        {titulo}
+        <span className="block truncate text-slate-500">{ajuda}</span>
+      </span>
+    </Link>
+  )
 }

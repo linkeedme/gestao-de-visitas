@@ -236,3 +236,67 @@ export async function vendedoresComVisita(
 
   return linhas
 }
+
+export type DiaSerie = {
+  data: string
+  realizadas: number
+  canceladas: number
+  reagendadas: number
+  aFazer: number
+}
+
+/**
+ * A série diária do período, sem buracos.
+ *
+ * O banco só devolve dias que tiveram visita. Um gráfico de linha montado
+ * direto do resultado ligaria segunda a quinta como se quarta não existisse,
+ * achatando o fim de semana e inventando uma tendência que não houve. Os dias
+ * vazios entram aqui com zero.
+ */
+export async function serieDiaria(
+  db: BancoVisita,
+  de: string,
+  ate: string,
+  usuarioId?: string
+): Promise<DiaSerie[]> {
+  const filtros = [gte(visita.data, de), lte(visita.data, ate)]
+  if (usuarioId) filtros.push(eq(visita.usuarioId, usuarioId))
+
+  const linhas = await db
+    .select({
+      data: visita.data,
+      realizadas: count(sql`case when ${visita.status} = 'realizada' then 1 end`),
+      canceladas: count(sql`case when ${visita.status} = 'cancelada' then 1 end`),
+      reagendadas: count(sql`case when ${visita.status} = 'reagendada' then 1 end`),
+      aFazer: count(sql`case when ${visita.status} = 'a_fazer' then 1 end`),
+    })
+    .from(visita)
+    .where(and(...filtros))
+    .groupBy(visita.data)
+
+  const porDia = new Map(linhas.map((l) => [l.data, l]))
+  const serie: DiaSerie[] = []
+  for (let d = de; d <= ate; d = somarDias(d, 1)) {
+    serie.push(
+      porDia.get(d) ?? { data: d, realizadas: 0, canceladas: 0, reagendadas: 0, aFazer: 0 }
+    )
+  }
+  return serie
+}
+
+export type FatiaTipo = { tipo: string; n: number }
+
+/** Distribuição por tipo de visita — que trabalho a equipe está fazendo. */
+export async function porTipo(
+  db: BancoVisita,
+  de: string,
+  ate: string
+): Promise<FatiaTipo[]> {
+  const linhas = await db
+    .select({ tipo: visita.tipo, n: count() })
+    .from(visita)
+    .where(and(gte(visita.data, de), lte(visita.data, ate)))
+    .groupBy(visita.tipo)
+
+  return linhas.sort((a, b) => b.n - a.n)
+}
