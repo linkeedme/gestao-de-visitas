@@ -37,8 +37,11 @@ tratam o celular como um desktop estreito:
   (`lg:hidden`) e empilha os sete dias. A semana vira um scroll longo e deixa
   de parecer uma semana.
 
-Além disso, cada visão traz seu próprio cabeçalho, então trocar de aba mexe a
-tela inteira — a origem da sensação de coisa remendada.
+> **Corrigido na execução (2026-08-27):** esta seção afirmava que cada visão
+> traz seu próprio cabeçalho e que trocar de aba mexe a tela inteira. É falso —
+> o cabeçalho já era único e comum às três, e só o texto do título muda. O que
+> havia de real ali eram os alvos de toque: setas de 40px e abas de 30px,
+> ambas abaixo dos 44px. Foi isso que a Fase 2 corrigiu.
 
 ## Quem usa, e como
 
@@ -134,11 +137,10 @@ o custo de mantê-la é zero.
 ### Faixa de período constante
 
 Uma única faixa no topo, comum às três visões: `‹ período ›` à esquerda e as
-abas dia/semana/mês à direita. Ela **não se move** ao trocar de visão — só o
-conteúdo abaixo troca.
+abas dia/semana/mês à direita, que não se move ao trocar de visão.
 
-Hoje cada visão desenha seu próprio cabeçalho, e a troca de aba desloca a
-página inteira.
+Isso já existia — ver a correção acima. O trabalho aqui foi só levar setas e
+abas ao mínimo de 44px de toque.
 
 ### Mês: carga por intensidade
 
