@@ -1,57 +1,95 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { exigirGestor } from '@/lib/auth/atual'
 import {
-  resumoPorVendedor,
+  db,
   listarNaoSincronizadas,
   contarAgendadasAdiante,
-  db,
 } from '@/lib/visita/repositorio'
 import {
+  kpisPorVendedor,
+  listarParaAuditoria,
+  vendedoresComVisita,
   serieDiaria,
   porTipo,
   clientesEmRisco,
   reagendamentosEmSerie,
+  realizadasSemRelato,
+  atrasadas,
 } from '@/lib/visita/relatorios'
+import { montarAlertas } from '@/lib/visita/alertas'
+import { linkDaGestao, type FiltrosGestao } from '@/lib/rotas'
 import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
+import { ATALHOS, intervaloDoFiltro } from '@/lib/visita/periodo'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 import { BarrasPorDia, BarrasPorPessoa, PorTipo, Legenda, CORES } from './Graficos'
+import { Alertas } from './Alertas'
+import { Auditoria } from './Auditoria'
 
 export const dynamic = 'force-dynamic'
 
-const PERIODOS = [
-  { dias: 6, rotulo: '7 dias' },
-  { dias: 29, rotulo: '30 dias' },
-  { dias: 89, rotulo: '90 dias' },
-] as const
+const STATUS_VALIDOS = ['a_fazer', 'realizada', 'cancelada', 'reagendada'] as const
+type StatusFiltro = (typeof STATUS_VALIDOS)[number]
 
-export default async function Painel({ searchParams }: PageProps<'/painel'>) {
+/**
+ * A tela de gestão.
+ *
+ * Nasceu da fusão de duas: painel e relatórios mostravam os mesmos dois
+ * alertas e respondiam "por pessoa" com consultas diferentes. O gestor
+ * precisava abrir as duas para ter um quadro.
+ *
+ * A ordem é número, problema, contexto, pessoa, detalhe. Os alertas vêm antes
+ * dos gráficos porque são a única parte que pede ação — gráfico é contexto,
+ * alerta é trabalho.
+ */
+export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
   await exigirGestor()
-  const { periodo } = await searchParams
+  const { de: deParam, ate: ateParam, periodo, vendedor, status } = await searchParams
 
-  const dias = Number(typeof periodo === 'string' ? periodo : 29)
-  const diasValidos = PERIODOS.some((p) => p.dias === dias) ? dias : 29
-  const ate = hoje()
-  const de = somarDias(ate, -diasValidos)
+  const texto = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+  const hojeISO = hoje()
 
-  const [linhas, pendentes, adiante, serie, tipos, emRisco, empurrados] = await Promise.all([
-    resumoPorVendedor(db, de, ate),
-    listarNaoSincronizadas(db),
-    contarAgendadasAdiante(db, ate),
-    serieDiaria(db, de, ate),
-    porTipo(db, de, ate),
-    clientesEmRisco(db, ate, 30),
-    reagendamentosEmSerie(db, de, ate),
-  ])
+  // O mesmo filtro que os relatórios usavam: aceita intervalo livre e ainda
+  // entende o `?periodo=` antigo, então os links de painel já salvos por aí
+  // continuam chegando na tela certa.
+  const { de, ate, atalhoAtivo } = intervaloDoFiltro(
+    { de: texto(deParam), ate: texto(ateParam), periodo: texto(periodo) },
+    hojeISO
+  )
+  const usuarioId = texto(vendedor)
+  const statusFiltro = STATUS_VALIDOS.includes(status as StatusFiltro)
+    ? (status as StatusFiltro)
+    : undefined
 
-  const total = linhas.reduce(
+  const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
+
+  const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas] =
+    await Promise.all([
+      kpisPorVendedor(db, de, ate),
+      listarNaoSincronizadas(db),
+      contarAgendadasAdiante(db, ate),
+      serieDiaria(db, de, ate),
+      porTipo(db, de, ate),
+      // Estes dois recebem `hojeISO`, não `ate`: atraso é uma pergunta sobre o
+      // presente. Com intervalo livre, passar `ate` faria a tela de julho
+      // responder o que estava atrasado em julho — e o gestor leria como
+      // situação de agora.
+      clientesEmRisco(db, hojeISO, 30),
+      reagendamentosEmSerie(db, de, ate),
+      realizadasSemRelato(db, de, ate),
+      atrasadas(db, hojeISO),
+    ])
+
+  const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
+
+  const total = kpis.reduce(
     (acc, l) => ({
       aFazer: acc.aFazer + l.aFazer,
       realizadas: acc.realizadas + l.realizadas,
       canceladas: acc.canceladas + l.canceladas,
       reagendadas: acc.reagendadas + l.reagendadas,
-      total: acc.total + l.total,
     }),
-    { aFazer: 0, realizadas: 0, canceladas: 0, reagendadas: 0, total: 0 }
+    { aFazer: 0, realizadas: 0, canceladas: 0, reagendadas: 0 }
   )
 
   const fechadas = total.realizadas + total.canceladas
@@ -63,30 +101,35 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold">Painel</h1>
+          <h1 className="font-display text-2xl font-semibold">Gestão</h1>
           <p className="text-sm text-slate-500">
             {formatarDia(de)} a {formatarDia(ate)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {PERIODOS.map((p) => (
+          {ATALHOS.map((a) => (
             <Link
-              key={p.dias}
-              href={`/painel?periodo=${p.dias}`}
+              key={a.dias}
+              href={linkDaGestao({
+                ...filtros,
+                de: somarDias(hojeISO, -a.dias),
+                ate: hojeISO,
+              })}
+              prefetch={false}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                p.dias === diasValidos
+                a.dias === atalhoAtivo
                   ? 'bg-asfalto text-white'
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
               }`}
             >
-              {p.rotulo}
+              {a.rotulo}
             </Link>
           ))}
         </div>
       </div>
 
-      {/* O número que responde à pergunta do gestor antes de qualquer gráfico:
-          quanto de trabalho foi feito. O resto contextualiza. */}
+      {/* ❶ O número que responde à pergunta do gestor antes de qualquer
+          gráfico: quanto de trabalho foi feito. O resto contextualiza. */}
       <section className="grid gap-3 lg:grid-cols-3">
         <div className="rounded-2xl bg-asfalto p-5 text-white shadow-sm">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">
@@ -115,6 +158,7 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
       {adiante > 0 && (
         <Link
           href={`/agenda?data=${somarDias(ate, 1)}`}
+          prefetch={false}
           className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200/70"
         >
           <span className="font-display text-2xl font-semibold" style={{ color: CORES.aFazer }}>
@@ -127,6 +171,10 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
         </Link>
       )}
 
+      {/* ❷ O acionável, antes do ilustrativo. */}
+      <Alertas alertas={alertas} />
+
+      {/* ❸ Contexto. */}
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Movimento por dia</h2>
@@ -136,18 +184,10 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
+        {/* ❹ Por pessoa, agora numa versão só. */}
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
           <h2 className="mb-4 font-display text-lg font-semibold">Por pessoa</h2>
-          <BarrasPorPessoa
-            linhas={linhas.map((l) => ({
-              id: l.usuarioId,
-              nome: l.vendedor,
-              realizadas: l.realizadas,
-              aFazer: l.aFazer,
-              reagendadas: l.reagendadas,
-              canceladas: l.canceladas,
-            }))}
-          />
+          <BarrasPorPessoa linhas={kpis} />
         </section>
 
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
@@ -156,44 +196,32 @@ export default async function Painel({ searchParams }: PageProps<'/painel'>) {
         </section>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        {empurrados.length > 0 && (
-          <Aviso
-            n={empurrados.length}
-            cor={CORES.reagendadas}
-            titulo={empurrados.length === 1 ? 'cliente empurrado' : 'clientes empurrados'}
-            ajuda="Reagendados duas vezes ou mais."
-            href="/relatorios"
-          />
-        )}
-        {emRisco.length > 0 && (
-          <Aviso
-            n={emRisco.length}
-            cor={CORES.canceladas}
-            titulo={emRisco.length === 1 ? 'cliente sem visita' : 'clientes sem visita'}
-            ajuda="Mais de 30 dias desde a última."
-            href="/relatorios"
-          />
-        )}
-        {pendentes.length > 0 && (
-          <Aviso
-            n={pendentes.length}
-            cor={CORES.reagendadas}
-            titulo={pendentes.length === 1 ? 'visita fora do CRM' : 'visitas fora do CRM'}
-            ajuda="Salvas aqui, ainda não enviadas."
-            href="/admin"
-          />
-        )}
-      </div>
-
-      <Link
-        href="/relatorios"
-        className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
-      >
-        Ver relatórios e exportar planilha
-        <span aria-hidden="true">→</span>
-      </Link>
+      {/* ❺ A auditoria tem as duas consultas mais pesadas e é a menos urgente:
+          num boundary próprio, ela não segura o resto da página. */}
+      <Suspense fallback={<EsqueletoAuditoria />}>
+        <BlocoAuditoria filtros={filtros} />
+      </Suspense>
     </div>
+  )
+}
+
+async function BlocoAuditoria({ filtros }: { filtros: FiltrosGestao }) {
+  const [visitas, vendedores] = await Promise.all([
+    listarParaAuditoria(db, {
+      de: filtros.de,
+      ate: filtros.ate,
+      usuarioId: filtros.vendedor,
+      status: filtros.status as StatusFiltro | undefined,
+    }),
+    vendedoresComVisita(db, filtros.de, filtros.ate),
+  ])
+
+  return <Auditoria visitas={visitas} vendedores={vendedores} filtros={filtros} />
+}
+
+function EsqueletoAuditoria() {
+  return (
+    <div className="h-32 animate-pulse rounded-2xl bg-white ring-1 ring-slate-200/70 motion-reduce:animate-none" />
   )
 }
 
@@ -219,34 +247,5 @@ function Cartao({
       </p>
       {ajuda && <p className="text-xs text-slate-400">{ajuda}</p>}
     </div>
-  )
-}
-
-function Aviso({
-  n,
-  cor,
-  titulo,
-  ajuda,
-  href,
-}: {
-  n: number
-  cor: string
-  titulo: string
-  ajuda: string
-  href: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
-    >
-      <span className="font-display text-2xl font-semibold" style={{ color: cor }}>
-        {n}
-      </span>
-      <span className="min-w-0 text-sm text-slate-700">
-        {titulo}
-        <span className="block truncate text-slate-500">{ajuda}</span>
-      </span>
-    </Link>
   )
 }
