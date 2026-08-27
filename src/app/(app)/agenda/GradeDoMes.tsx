@@ -1,26 +1,29 @@
 import Link from 'next/link'
+import { nivelDeCarga, CARGA } from '@/lib/visita/carga'
 import type { ContagemDoDia } from '@/lib/visita/repositorio'
 
 /**
  * O mês inteiro em contadores.
  *
  * Não carrega as visitas de propósito: um mês cheio de uma equipe pequena
- * passa de 300 linhas, e o que a célula mostra são quatro números. A conta
- * vem agregada do banco.
+ * passa de 300 linhas, e o que a célula mostra é um número. A conta vem
+ * agregada do banco.
  *
- * As células das pontas são os dias do mês vizinho, em cinza e igualmente
- * clicáveis — a última semana de julho aparece na tela de agosto, e é ali
- * que mora metade do planejamento da virada.
+ * A carga do dia aparece como intensidade de fundo. Antes eram bolinhas, uma
+ * por visita e uma cor por status — até vinte e quatro delas, de seis pixels,
+ * numa célula de menos de cinquenta de largura no celular. Não se contava, não
+ * se distinguia a cor, e o `title` que explicaria não existe no toque.
+ *
+ * A intensidade mostra o total e não mostra a divisão por status. É perda
+ * deliberada: no mês a pergunta é "que dia está cheio", para escolher onde
+ * entrar; a divisão por status é pergunta da visão de dia, a um toque daqui.
+ *
+ * As células das pontas são os dias do mês vizinho, apagadas e igualmente
+ * clicáveis — a última semana de julho aparece na tela de agosto, e é ali que
+ * mora metade do planejamento da virada.
  */
 
 const CURTOS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
-
-const PONTOS = [
-  { chave: 'aFazer', cor: 'bg-fazer', rotulo: 'a fazer' },
-  { chave: 'realizadas', cor: 'bg-feita', rotulo: 'realizadas' },
-  { chave: 'reagendadas', cor: 'bg-adiada', rotulo: 'reagendadas' },
-  { chave: 'canceladas', cor: 'bg-morta', rotulo: 'canceladas' },
-] as const
 
 export function GradeDoMes({
   dias,
@@ -60,46 +63,36 @@ export function GradeDoMes({
           const total = c ? c.aFazer + c.realizadas + c.reagendadas + c.canceladas : 0
           const doMes = d.slice(0, 7) === mesCorrente
           const ehHoje = d === hojeISO
+          const cor = CARGA[nivelDeCarga(total)]
 
           return (
             <Link
               key={d}
               href={linkDoDia(d)}
-              aria-label={`${Number(d.slice(8, 10))} — ${total} ${total === 1 ? 'visita' : 'visitas'}`}
+              aria-label={`Dia ${Number(d.slice(8, 10))} — ${total} ${total === 1 ? 'visita' : 'visitas'}`}
               // Altura fixa: sem ela a grade pularia de tamanho ao trocar de
               // mês, conforme os dias cheios caíssem em linhas diferentes.
-              className={`flex h-20 flex-col rounded-xl p-1.5 transition-colors ${
-                ehHoje
-                  ? 'bg-asfalto text-white'
-                  : doMes
-                    ? 'bg-slate-50 hover:bg-slate-100'
-                    : 'bg-white hover:bg-slate-50'
+              // Dezesseis unidades são 64px, bem acima dos 44 do alvo de toque,
+              // e permitem o mês inteiro caber sem rolagem no celular.
+              className={`flex h-16 flex-col justify-between rounded-xl p-1.5 transition-colors ${
+                ehHoje ? 'bg-asfalto' : doMes ? cor.fundo : 'bg-white opacity-40'
               }`}
             >
               <span
                 className={`text-sm font-semibold ${
-                  ehHoje ? 'text-white' : doMes ? 'text-slate-600' : 'text-slate-300'
+                  ehHoje ? 'text-white' : doMes ? cor.texto : 'text-slate-400'
                 }`}
               >
                 {Number(d.slice(8, 10))}
               </span>
 
-              {c && total > 0 && (
-                <span className="mt-auto flex flex-wrap gap-0.5">
-                  {PONTOS.map((p) =>
-                    Array.from({ length: Math.min(c[p.chave], 6) }, (_, i) => (
-                      <span
-                        key={`${p.chave}-${i}`}
-                        title={p.rotulo}
-                        className={`h-1.5 w-1.5 rounded-full ${p.cor}`}
-                      />
-                    ))
-                  )}
-                  {total > 6 && (
-                    <span className={`text-[10px] ${ehHoje ? 'text-white/70' : 'text-slate-400'}`}>
-                      {total}
-                    </span>
-                  )}
+              {total > 0 && (
+                <span
+                  className={`text-right text-xs font-semibold ${
+                    ehHoje ? 'text-white/80' : doMes ? cor.texto : 'text-slate-400'
+                  }`}
+                >
+                  {total}
                 </span>
               )}
             </Link>
