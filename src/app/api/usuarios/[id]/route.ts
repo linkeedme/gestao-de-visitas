@@ -8,7 +8,7 @@ const Patch = z.object({
   nome: z.string().trim().min(2).optional(),
   telefone: z.string().trim().min(10).optional(),
   email: z.email().nullable().optional(),
-  zapleUserId: z.guid().optional(),
+  zapleUserId: z.guid().nullable().optional(),
   ativo: z.boolean().optional(),
   papel: z.enum(['vendedor', 'gestor']).optional(),
   senha: z.string().min(8).optional(),

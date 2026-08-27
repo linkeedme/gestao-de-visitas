@@ -22,11 +22,19 @@ describe('tabela usuario', () => {
     }
   })
 
-  it('exige telefone e vínculo com o agente do Zaple', () => {
-    // Sem zaple_user_id o vendedor não enxerga visita nenhuma.
+  it('exige telefone e senha', () => {
     expect(colunas['telefone'].notNull).toBe(true)
-    expect(colunas['zaple_user_id'].notNull).toBe(true)
     expect(colunas['senha_hash'].notNull).toBe(true)
+  })
+
+  it('aceita quem não é atendente no CRM', () => {
+    // O vínculo com o agente é opcional no banco porque o gestor que
+    // administra o sistema não é atendente no CRM e não tem agente para
+    // escolher. Exigir de todos impedia cadastrá-lo pela tela.
+    //
+    // Para VENDEDOR a exigência continua, mas na rota — ver
+    // tests/api/usuarios.test.ts —, onde o papel é conhecido.
+    expect(colunas['zaple_user_id'].notNull).toBe(false)
   })
 
   it('não permite dois usuários com o mesmo telefone', () => {

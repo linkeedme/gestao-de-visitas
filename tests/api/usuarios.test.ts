@@ -106,4 +106,64 @@ describe('POST /api/usuarios', () => {
     expect(JSON.stringify(corpo)).not.toContain('$2a$12$segredo')
     expect(corpo.usuarios[0]).not.toHaveProperty('senhaHash')
   })
+
+  // O gestor que administra o sistema — e o time de desenvolvimento — não é
+  // atendente no CRM e não tem agente para escolher. Exigir de todos impedia
+  // cadastrar essas pessoas pela tela, que foi o que travou o cliente.
+  it('cadastra gestor SEM agente no CRM', async () => {
+    const { POST } = await import('@/app/api/usuarios/route')
+
+    const r = await POST(
+      pedido({
+        nome: 'Time de Desenvolvimento',
+        telefone: '21999998888',
+        senha: 'senhaforte123',
+        papel: 'gestor',
+        zapleUserId: null,
+      })
+    )
+
+    expect(r.status).toBe(201)
+    expect(criarUsuario).toHaveBeenCalledWith(
+      expect.objectContaining({ papel: 'gestor', zapleUserId: null })
+    )
+  })
+
+  // Vendedor sem vínculo teria o kanban vazio para sempre, e o sintoma só
+  // apareceria dias depois, em campo — silencioso e caro.
+  it('RECUSA vendedor sem agente no CRM', async () => {
+    const { POST } = await import('@/app/api/usuarios/route')
+
+    const r = await POST(
+      pedido({
+        nome: 'Vendedor Sem Vinculo',
+        telefone: '21999997777',
+        senha: 'senhaforte123',
+        papel: 'vendedor',
+        zapleUserId: null,
+      })
+    )
+
+    expect(r.status).toBe(400)
+    expect(criarUsuario).not.toHaveBeenCalled()
+  })
+
+  it('não consulta o CRM quando não há vínculo a validar', async () => {
+    listarAgentes.mockClear()
+    const { POST } = await import('@/app/api/usuarios/route')
+
+    await POST(
+      pedido({
+        nome: 'Gestor Sem CRM',
+        telefone: '21999996666',
+        senha: 'senhaforte123',
+        papel: 'gestor',
+        zapleUserId: null,
+      })
+    )
+
+    // Uma ida à API do Zaple sem nada para verificar é latência à toa numa
+    // tela que o gestor usa para cadastrar a equipe inteira.
+    expect(listarAgentes).not.toHaveBeenCalled()
+  })
 })

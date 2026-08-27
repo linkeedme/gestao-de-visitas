@@ -23,7 +23,7 @@ export type EntradaVisita = {
   contatoId: string
   contatoNome: string
   usuarioId: string
-  zapleUserId: string
+  zapleUserId: string | null
   data: string
   titulo: string
   tipo?: TipoVisita

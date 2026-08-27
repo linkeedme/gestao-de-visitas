@@ -9,8 +9,16 @@ export const usuario = pgTable('usuario', {
   telefone: text('telefone').notNull().unique(),
   email: text('email'),
   senhaHash: text('senha_hash').notNull(),
-  /** Vínculo com responsibleUserId dos cards. Sem ele o vendedor não vê visita. */
-  zapleUserId: uuid('zaple_user_id').notNull(),
+  /**
+   * Vínculo com o `responsibleUserId` dos cards do CRM.
+   *
+   * Nulo para quem não é atendente lá — o gestor que administra o sistema, o
+   * time de desenvolvimento. Era obrigatório, e isso impedia cadastrar essas
+   * pessoas pela tela: elas não têm agente para escolher. Para VENDEDOR
+   * continua exigido pela rota, porque sem ele o kanban dele nasce vazio e o
+   * sintoma só aparece dias depois, em campo.
+   */
+  zapleUserId: uuid('zaple_user_id'),
   papel: papelEnum('papel').notNull().default('vendedor'),
   ativo: boolean('ativo').notNull().default(true),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
@@ -76,8 +84,12 @@ export const visita = pgTable(
     usuarioId: uuid('usuario_id')
       .notNull()
       .references(() => usuario.id),
-    /** O mesmo `responsibleUserId` do card. Ver o comentário em `usuario`. */
-    zapleUserId: uuid('zaple_user_id').notNull(),
+    /**
+     * O responsável do card espelho. Nulo quando quem criou a visita não é
+     * atendente no CRM: a visita existe aqui do mesmo jeito, e o sincronizador
+     * a deixa sem espelho em vez de recusar o trabalho.
+     */
+    zapleUserId: uuid('zaple_user_id'),
     /** Só a data, sem hora: o fuso não pode empurrar a visita para ontem. */
     data: date('data', { mode: 'string' }).notNull(),
     status: statusVisitaEnum('status').notNull().default('a_fazer'),

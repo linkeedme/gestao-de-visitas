@@ -18,6 +18,13 @@ export async function sincronizar(
   v: Visita
 ): Promise<{ ok: boolean; erro?: string }> {
   try {
+    // Sem responsável no CRM não há card: o Zaple recusa card sem atendente,
+    // e o gestor que administra o sistema não é atendente lá. A visita fica
+    // sem espelho, registrada aqui, em vez de o trabalho ser recusado.
+    if (!v.zapleUserId) {
+      return { ok: false, erro: 'Quem criou esta visita não tem agente no CRM.' }
+    }
+
     const etapas = await listarEtapas()
     let cardId = v.cardId
 

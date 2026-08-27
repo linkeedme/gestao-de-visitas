@@ -9,7 +9,7 @@ type UsuarioVisivel = {
   nome: string
   telefone: string
   email: string | null
-  zapleUserId: string
+  zapleUserId: string | null
   papel: 'vendedor' | 'gestor'
   ativo: boolean
 }
@@ -35,7 +35,7 @@ export function CardUsuario({
   const [aberto, setAberto] = useState(false)
   const [nome, setNome] = useState(usuario.nome)
   const [telefone, setTelefone] = useState(comMascara(usuario.telefone))
-  const [zapleUserId, setZapleUserId] = useState(usuario.zapleUserId)
+  const [zapleUserId, setZapleUserId] = useState(usuario.zapleUserId ?? '')
   const [papel, setPapel] = useState(usuario.papel)
   const [senha, setSenha] = useState('')
   const [ocupado, setOcupado] = useState(false)
@@ -70,7 +70,7 @@ export function CardUsuario({
     const ok = await enviar({
       nome,
       telefone,
-      zapleUserId,
+      zapleUserId: zapleUserId || null,
       papel,
       ...(senha ? { senha } : {}),
     })
@@ -102,7 +102,12 @@ export function CardUsuario({
             )}
           </div>
           <p className="mt-0.5 text-sm text-slate-500">
-            {comMascara(usuario.telefone)} · Zaple: {agente?.nome ?? 'agente removido'}
+            {comMascara(usuario.telefone)} ·{' '}
+            {agente
+              ? `CRM: ${agente.nome}`
+              : usuario.zapleUserId
+                ? 'agente removido do CRM'
+                : 'sem agente no CRM'}
           </p>
         </div>
 
@@ -149,10 +154,13 @@ export function CardUsuario({
               onChange={(e) => setZapleUserId(e.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3 py-2.5"
             >
-              {!agente && (
-                <option value={usuario.zapleUserId}>
-                  Agente removido do Zaple — escolha outro
-                </option>
+              {/* Gestor pode ficar sem vínculo — quem administra o sistema não
+                  é atendente no CRM. Vendedor sem vínculo teria kanban vazio. */}
+              <option value="">
+                {papel === 'gestor' ? 'Não é atendente no CRM' : 'Escolha o agente…'}
+              </option>
+              {!agente && usuario.zapleUserId && (
+                <option value={usuario.zapleUserId}>Agente removido do CRM</option>
               )}
               {agentes.map((a) => (
                 <option key={a.userId} value={a.userId}>
@@ -161,7 +169,9 @@ export function CardUsuario({
               ))}
             </select>
             <span className="text-sm text-slate-500">
-              É o vínculo que faz as visitas dele aparecerem no CRM.
+              {papel === 'gestor'
+                ? 'Sem vínculo, esta pessoa administra o sistema mas as visitas dela não vão para o CRM.'
+                : 'É o vínculo que faz as visitas do vendedor aparecerem no CRM.'}
             </span>
           </label>
 

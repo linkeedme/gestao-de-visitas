@@ -33,7 +33,7 @@ const ETAPAS = [
 
 let banco: Awaited<ReturnType<typeof criarBancoDeTeste>>
 let usuarioId: string
-let zapleUserId: string
+let zapleUserId: string | null
 
 beforeEach(async () => {
   banco = await criarBancoDeTeste()

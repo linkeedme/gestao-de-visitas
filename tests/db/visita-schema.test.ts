@@ -32,8 +32,10 @@ describe('tabela visita', () => {
     expect(colunas['contato_nome'].notNull).toBe(true)
   })
 
-  it('exige o vínculo com o agente do Zaple, como a tabela usuario', () => {
-    expect(colunas['zaple_user_id'].notNull).toBe(true)
+  it('aceita visita de quem não é atendente no CRM', () => {
+    // Sem responsável no CRM a visita não ganha card, mas existe aqui do
+    // mesmo jeito: o Postgres é a fonte da verdade e o Zaple é a cópia.
+    expect(colunas['zaple_user_id'].notNull).toBe(false)
   })
 
   it('nasce a fazer', () => {

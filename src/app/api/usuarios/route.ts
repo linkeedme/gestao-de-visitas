@@ -9,7 +9,7 @@ const Entrada = z.object({
   telefone: z.string().min(10),
   email: z.email().nullable().optional(),
   senha: z.string().min(8),
-  zapleUserId: z.guid(),
+  zapleUserId: z.guid().nullable().optional(),
   papel: z.enum(['vendedor', 'gestor']),
 })
 
@@ -43,10 +43,26 @@ export async function POST(req: Request) {
   // Compara com o userId do agente, não com o id: é o userId que aparece em
   // responsibleUserId nos cards. Vincular ao id errado produz um vendedor que
   // nunca enxerga visita nenhuma, e o sintoma só aparece dias depois, em campo.
+  // Vendedor precisa do vínculo; gestor, não.
+  //
+  // O vínculo existe para ligar a pessoa aos cards do CRM: sem ele o kanban do
+  // vendedor nasce vazio e o sintoma só aparece dias depois, em campo. Já quem
+  // administra o sistema — o gestor, o time de desenvolvimento — não é
+  // atendente lá e não tem agente para escolher. Exigir de todos impedia
+  // cadastrar essas pessoas pela tela.
+  if (analisado.data.papel === 'vendedor' && !analisado.data.zapleUserId) {
+    return Response.json(
+      { erro: 'Vendedor precisa estar vinculado a um agente do CRM' },
+      { status: 400 }
+    )
+  }
+
   try {
-    const agentes = await listarAgentes()
-    if (!agentes.some((a) => a.userId === analisado.data.zapleUserId)) {
-      return Response.json({ erro: 'Esse agente não existe no Zaple' }, { status: 400 })
+    if (analisado.data.zapleUserId) {
+      const agentes = await listarAgentes()
+      if (!agentes.some((a) => a.userId === analisado.data.zapleUserId)) {
+        return Response.json({ erro: 'Esse agente não existe no Zaple' }, { status: 400 })
+      }
     }
 
     const criado = await criarUsuario(analisado.data)

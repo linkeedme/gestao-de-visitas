@@ -8,7 +8,7 @@ export type NovaEntradaUsuario = {
   telefone: string
   email?: string | null
   senha: string
-  zapleUserId: string
+  zapleUserId?: string | null
   papel: 'vendedor' | 'gestor'
 }
 
@@ -20,7 +20,7 @@ export async function criarUsuario(entrada: NovaEntradaUsuario): Promise<Usuario
       telefone: normalizarTelefone(entrada.telefone),
       email: entrada.email ?? null,
       senhaHash: await gerarHash(entrada.senha),
-      zapleUserId: entrada.zapleUserId,
+      zapleUserId: entrada.zapleUserId ?? null,
       papel: entrada.papel,
     })
     .returning()
@@ -35,7 +35,7 @@ export type PatchUsuario = {
   nome?: string
   telefone?: string
   email?: string | null
-  zapleUserId?: string
+  zapleUserId?: string | null
   ativo?: boolean
   papel?: 'vendedor' | 'gestor'
   senha?: string
