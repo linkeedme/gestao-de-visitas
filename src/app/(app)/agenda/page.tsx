@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { exigirUsuario } from '@/lib/auth/atual'
-import { listarDoPeriodo, db } from '@/lib/visita/repositorio'
+import { listarDoPeriodo, contarPorDia, db } from '@/lib/visita/repositorio'
 import { hoje, diasEntre } from '@/lib/visita/datas'
 import {
   VISTAS,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/visita/agenda'
 import { ListaDoDia } from './ListaDoDia'
 import { GradeDaSemana } from './GradeDaSemana'
+import { GradeDoMes } from './GradeDoMes'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,11 +58,24 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
   const vendoTodos = todos === '1' && u.papel === 'gestor'
   const { de, ate } = intervaloDaVista(v, dia)
 
-  const visitas = await listarDoPeriodo(db, { de, ate, usuarioId: vendoTodos ? undefined : u.id })
+  const usuarioId = vendoTodos ? undefined : u.id
 
-  const aFazer = visitas.filter((x) => x.status === 'a_fazer').length
-  const fechadas = visitas.length - aFazer
-  const progresso = visitas.length === 0 ? 0 : Math.round((fechadas / visitas.length) * 100)
+  // O mês lê contagens, não visitas: são 42 células de quatro números, e
+  // trazer 300 linhas com relato e nome de cliente para desenhar bolinha
+  // seria trabalho jogado fora.
+  const visitas = v === 'mes' ? [] : await listarDoPeriodo(db, { de, ate, usuarioId })
+  const contagens = v === 'mes' ? await contarPorDia(db, { de, ate, usuarioId }) : []
+
+  const total =
+    v === 'mes'
+      ? contagens.reduce((n, c) => n + c.aFazer + c.realizadas + c.reagendadas + c.canceladas, 0)
+      : visitas.length
+  const aFazer =
+    v === 'mes'
+      ? contagens.reduce((n, c) => n + c.aFazer, 0)
+      : visitas.filter((x) => x.status === 'a_fazer').length
+  const fechadas = total - aFazer
+  const progresso = total === 0 ? 0 : Math.round((fechadas / total) * 100)
   const { diaSemana, diaMes } = porExtenso(dia)
   const ehHoje = dia === hojeISO
 
@@ -142,7 +156,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
         <div className="flex items-baseline gap-2 px-5 pt-3">
           <span className="font-display text-2xl font-semibold">{fechadas}</span>
           <span className="text-sm text-white/60">
-            de {visitas.length} {visitas.length === 1 ? 'visita' : 'visitas'}
+            de {total} {total === 1 ? 'visita' : 'visitas'}
           </span>
           {aFazer > 0 && (
             <span className="ml-auto text-sm font-medium text-white/80">
@@ -188,6 +202,16 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
           visitas={visitas}
           hojeISO={hojeISO}
           mostrarVendedor={vendoTodos}
+          linkDoDia={(d) => link({ data: d, vista: 'dia' })}
+        />
+      )}
+
+      {v === 'mes' && (
+        <GradeDoMes
+          dias={diasEntre(de, ate)}
+          mesCorrente={dia.slice(0, 7)}
+          contagens={contagens}
+          hojeISO={hojeISO}
           linkDoDia={(d) => link({ data: d, vista: 'dia' })}
         />
       )}
