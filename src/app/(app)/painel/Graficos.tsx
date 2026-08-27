@@ -1,5 +1,5 @@
 import { formatarDia } from '@/lib/visita/datas'
-import type { DiaSerie } from '@/lib/visita/relatorios'
+import type { DiaSerie, KpiVendedor } from '@/lib/visita/relatorios'
 
 /**
  * As cores de status, validadas contra daltonismo e contraste.
@@ -149,11 +149,7 @@ export function BarrasPorDia({ serie }: { serie: DiaSerie[] }) {
  * Horizontal porque nome de gente é longo: em barra vertical o rótulo vira
  * texto girado, que ninguém lê de relance.
  */
-export function BarrasPorPessoa({
-  linhas,
-}: {
-  linhas: { id: string; nome: string; realizadas: number; aFazer: number; reagendadas: number; canceladas: number }[]
-}) {
+export function BarrasPorPessoa({ linhas }: { linhas: KpiVendedor[] }) {
   const maximo = Math.max(
     1,
     ...linhas.map((l) => l.realizadas + l.aFazer + l.reagendadas + l.canceladas)
@@ -172,11 +168,15 @@ export function BarrasPorPessoa({
       {linhas.map((l) => {
         const soma = l.realizadas + l.aFazer + l.reagendadas + l.canceladas
         return (
-          <div key={l.id} className="flex flex-col gap-1">
+          <div key={l.usuarioId} className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm font-semibold">{l.nome}</span>
-              <span className="shrink-0 font-display text-sm font-semibold text-slate-500">
-                {soma}
+              <span className="truncate text-sm font-semibold">{l.vendedor}</span>
+              {/* O alcance responde o que o volume esconde: dez visitas em dois
+                  clientes não é o mesmo trabalho que dez em dez. */}
+              <span className="shrink-0 text-xs text-slate-500">
+                <span className="font-display text-sm font-semibold text-slate-700">{soma}</span>{' '}
+                visitas · {l.clientesAlcancados}{' '}
+                {l.clientesAlcancados === 1 ? 'cliente' : 'clientes'}
               </span>
             </div>
             <div className="flex h-5 gap-[2px]" style={{ width: `${(soma / maximo) * 100}%` }}>
