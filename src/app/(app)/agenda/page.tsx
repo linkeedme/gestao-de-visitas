@@ -124,6 +124,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
           <div className="flex items-center gap-1.5">
             <Link
               href={link({ data: passoDaVista(v, dia, -1) })}
+              prefetch={false}
               aria-label="Período anterior"
               className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
             >
@@ -131,6 +132,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
             </Link>
             <Link
               href={link({ data: passoDaVista(v, dia, 1) })}
+              prefetch={false}
               aria-label="Período seguinte"
               className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg text-white/80 transition-colors hover:bg-white/20"
             >
@@ -144,6 +146,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
             <Link
               key={opcao}
               href={link({ vista: opcao })}
+              prefetch={false}
               aria-current={opcao === v ? 'page' : undefined}
               // 44px de altura: as abas são o controle mais usado da tela e
               // ficavam em trinta, abaixo do que o polegar acerta sem mirar.
@@ -181,6 +184,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
           {!ehHoje && (
             <Link
               href={link({ data: hojeISO })}
+              prefetch={false}
               className="text-white/70 underline-offset-4 hover:underline"
             >
               Voltar para hoje
@@ -189,6 +193,7 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
           {u.papel === 'gestor' && (
             <Link
               href={link({ todos: !vendoTodos })}
+              prefetch={false}
               className="ml-auto rounded-lg bg-white/10 px-3 py-1.5 font-medium text-white/90 transition-colors hover:bg-white/20"
             >
               {vendoTodos ? 'Só as minhas' : 'Ver a equipe'}

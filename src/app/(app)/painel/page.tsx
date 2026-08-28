@@ -18,7 +18,7 @@ import {
   atrasadas,
 } from '@/lib/visita/relatorios'
 import { montarAlertas } from '@/lib/visita/alertas'
-import { medir } from '@/lib/medir'
+import { medir, comTeto } from '@/lib/medir'
 import { linkDaGestao, type FiltrosGestao } from '@/lib/rotas'
 import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
 import { ATALHOS, intervaloDoFiltro } from '@/lib/visita/periodo'
@@ -66,7 +66,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
   const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas] =
-    await medir('painel:9consultas', () => Promise.all([
+    await comTeto('painel:9consultas', 8, () => Promise.all([
       medir('q1-kpis', () => kpisPorVendedor(db, de, ate)),
       medir('q2-foraDoCrm', () => listarNaoSincronizadas(db)),
       medir('q3-adiante', () => contarAgendadasAdiante(db, ate)),

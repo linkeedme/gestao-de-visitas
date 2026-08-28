@@ -106,6 +106,7 @@ export function ListaDoDia({
                 <p className="text-sm text-slate-500">{secao.vazio}</p>
                 <Link
                   href="/visita/nova"
+                  prefetch={false}
                   className="mt-3 inline-block rounded-xl bg-fazer px-4 py-2.5 text-sm font-semibold text-white"
                 >
                   Agendar uma visita

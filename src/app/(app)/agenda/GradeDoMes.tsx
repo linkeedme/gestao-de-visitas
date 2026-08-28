@@ -69,6 +69,7 @@ export function GradeDoMes({
             <Link
               key={d}
               href={linkDoDia(d)}
+              prefetch={false}
               aria-label={`Dia ${Number(d.slice(8, 10))} — ${total} ${total === 1 ? 'visita' : 'visitas'}`}
               // Altura fixa: sem ela a grade pularia de tamanho ao trocar de
               // mês, conforme os dias cheios caíssem em linhas diferentes.

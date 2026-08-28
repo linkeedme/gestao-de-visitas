@@ -53,6 +53,7 @@ export function SemanaNoCelular({
             <Link
               key={d}
               href={linkDoDia(d)}
+              prefetch={false}
               aria-label={`${CURTOS[i]}, dia ${Number(d.slice(8, 10))} — ${n} ${n === 1 ? 'visita' : 'visitas'}`}
               aria-current={ativo ? 'date' : undefined}
               className={`flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors ${

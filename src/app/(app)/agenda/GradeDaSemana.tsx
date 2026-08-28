@@ -83,6 +83,7 @@ function Cabecalho({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`flex items-baseline justify-between rounded-xl px-2.5 py-2 transition-colors ${
         ehHoje ? 'bg-asfalto text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
       }`}
@@ -98,6 +99,7 @@ function Card({ v, mostrarVendedor }: { v: VisitaDoDia; mostrarVendedor: boolean
   return (
     <Link
       href={`/visita/${v.id}`}
+      prefetch={false}
       className="flex overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70"
     >
       <div className={`w-1.5 shrink-0 ${FAIXA[v.status] ?? 'bg-morta'}`} aria-hidden="true" />
