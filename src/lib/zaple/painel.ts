@@ -1,3 +1,4 @@
+import { numeroDoAmbiente } from '@/lib/ambiente'
 import { zapleGet } from './client'
 import type { Etapa } from './tipos'
 
@@ -63,7 +64,7 @@ async function buscarEtapas(id: string): Promise<Etapa[]> {
  * Cinco minutos é curto o bastante para uma renomeação aparecer sozinha e
  * longo o bastante para tirar a chamada do caminho de quem está clicando.
  */
-const VALIDADE_MS = Number(process.env.ZAPLE_ETAPAS_TTL_MS ?? 300_000)
+const VALIDADE_MS = numeroDoAmbiente('ZAPLE_ETAPAS_TTL_MS', 300_000)
 
 let cache: { painel: string; etapas: Etapa[]; em: number } | undefined
 

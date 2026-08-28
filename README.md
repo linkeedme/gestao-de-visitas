@@ -117,6 +117,33 @@ npx tsx --env-file=.env scripts/conferir-zaple.mts    # etapas, visitas, contato
 npx tsx --env-file=.env scripts/gerar-icones.mjs      # regera os ícones do PWA
 ```
 
+### Quando alguém não consegue entrar
+
+O login recusa com a mesma mensagem — "Telefone ou senha incorretos" — nos três
+casos: telefone que não existe, senha errada e conta desativada. É de propósito,
+para não entregar a lista de quem trabalha aqui a quem estiver testando senhas.
+O preço é que, do lado de dentro, também não dá para saber qual dos três foi.
+
+Estes dois scripts respondem isso. Rodam contra o banco, então precisam do
+`.env` com a `DATABASE_URL` de produção:
+
+```bash
+npx tsx --env-file=.env scripts/listar-usuarios.mts
+```
+
+Mostra nome, o telefone normalizado com que o login compara, papel e se a conta
+está ativa. Nunca imprime hash de senha.
+
+```bash
+npx tsx --env-file=.env scripts/redefinir-senha.mts "5521999999999" "novasenha" --ativar
+```
+
+Redefine a senha de quem já existe e zera o limitador de tentativas — são oito
+por quinze minutos, e quem passou a tarde tentando entrar já queimou a cota, o
+que faria a senha nova ser recusada como se não tivesse funcionado. O `--ativar`
+é opcional e religa a conta; sem ele, uma conta desativada continua recusando o
+login mesmo com a senha nova.
+
 ---
 
 ## Arquitetura

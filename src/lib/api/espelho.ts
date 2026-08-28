@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import { sincronizar } from '@/lib/visita/sincronizador'
 import { esperarAte } from '@/lib/teto'
+import { numeroDoAmbiente } from '@/lib/ambiente'
 import type { BancoVisita } from '@/lib/visita/repositorio'
 import type { Visita } from '@/lib/db'
 
@@ -24,7 +25,7 @@ import type { Visita } from '@/lib/db'
  * mostra o aviso de "não enviada ao CRM". Passou disso, quem está esperando é
  * liberado e o envio termina em `after`, depois da resposta.
  */
-const PRAZO_MS = Number(process.env.SINCRONISMO_PRAZO_MS ?? 1_500)
+const PRAZO_MS = numeroDoAmbiente('SINCRONISMO_PRAZO_MS', 1_500)
 
 /**
  * Espelha visitas no Zaple sem deixá-las prender a resposta.

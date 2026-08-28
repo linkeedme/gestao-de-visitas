@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { numeroDoAmbiente } from '@/lib/ambiente'
 import * as schema from './schema'
 
 type Conexao = ReturnType<typeof drizzle<typeof schema>>
@@ -34,7 +35,7 @@ let ultimoUso = 0
  * `DB_OCIOSIDADE_MAX_MS` regula a janela. Um valor bem baixo volta ao
  * comportamento antigo, de conexão nova a cada requisição.
  */
-const OCIOSIDADE_MAXIMA_MS = Number(process.env.DB_OCIOSIDADE_MAX_MS ?? 10_000)
+const OCIOSIDADE_MAXIMA_MS = numeroDoAmbiente('DB_OCIOSIDADE_MAX_MS', 10_000)
 
 /**
  * Prazo para o pool velho terminar o que estava fazendo antes de ser
@@ -80,7 +81,7 @@ function conectar(): Conexao {
     // consultas em paralelo, com pool maior que 1 ele responde
     // "unnamed prepared statement does not exist" e a tela quebra — só
     // localmente, nunca contra um Postgres de verdade.
-    max: Number(process.env.DB_POOL_MAX ?? 3),
+    max: numeroDoAmbiente('DB_POOL_MAX', 3),
     idle_timeout: 20,
     // O teto que faltava, e o mais caro de não ter: os timeouts abaixo viajam
     // no handshake, então uma conexão que nunca se estabelece nunca os recebe.

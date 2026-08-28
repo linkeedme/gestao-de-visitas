@@ -1,3 +1,4 @@
+import { numeroDoAmbiente } from '@/lib/ambiente'
 import { ZapleError, vaTentarDeNovo } from './erros'
 
 const TENTATIVAS = 3
@@ -9,7 +10,7 @@ const ESPERA_BASE_MS = 300
  * Vercel, e como isto roda antes de a página ou o POST responderem, quem
  * ficava parado era a pessoa segurando o celular.
  */
-const POR_TENTATIVA_MS = Number(process.env.ZAPLE_TIMEOUT_MS ?? 8_000)
+const POR_TENTATIVA_MS = numeroDoAmbiente('ZAPLE_TIMEOUT_MS', 8_000)
 
 /**
  * Teto do conjunto, retentativas e esperas incluídas.
@@ -18,7 +19,7 @@ const POR_TENTATIVA_MS = Number(process.env.ZAPLE_TIMEOUT_MS ?? 8_000)
  * segundos mais o backoff passavam de vinte e cinco, o que é o mesmo travamento
  * mais devagar. Passado o orçamento, a chamada desiste com o último erro.
  */
-const ORCAMENTO_MS = Number(process.env.ZAPLE_ORCAMENTO_MS ?? 12_000)
+const ORCAMENTO_MS = numeroDoAmbiente('ZAPLE_ORCAMENTO_MS', 12_000)
 
 type Params = Record<string, string | string[] | number | undefined>
 
