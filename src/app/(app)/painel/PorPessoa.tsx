@@ -11,16 +11,16 @@ const FAIXAS = [
 ] as const
 
 /**
- * O time, uma pessoa por cartão.
+ * A equipe, uma linha por pessoa, com os números na mesma coluna.
  *
- * Substituiu os gráficos de movimento por dia e de tipo de visita. Eles
- * mostravam o time somado, e somar é justamente o que apaga a pergunta do
- * gestor: ele não precisa saber quantas visitas houve na terça, precisa saber
- * como cada pessoa está indo.
+ * O alinhamento é a decisão principal desta tela. O trabalho do gestor é
+ * comparar: quem saiu menos, quem atende poucos clientes, quem tem relato
+ * faltando. Números dentro de cartões independentes ficam em posições
+ * diferentes e obrigam a ler um por um; na mesma coluna, a comparação é
+ * imediata e não precisa de gráfico nenhum para acontecer.
  *
- * Todo número vem com o que ele é escrito ao lado. "34" sozinho não diz nada;
- * "34 realizadas" diz. E o percentual, que antes aparecia solto como
- * "conclusão", virou a frase que ele resume.
+ * No celular a linha vira bloco empilhado — sete colunas não cabem no polegar
+ * — mas os números continuam alinhados entre si dentro de cada pessoa.
  */
 export function PorPessoa({
   linhas,
@@ -31,95 +31,144 @@ export function PorPessoa({
 }) {
   if (linhas.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
         Ninguém registrou visita neste período.
       </p>
     )
   }
 
+  // A barra mede volume, então todas dividem a mesma régua: quem fez menos
+  // desenha uma barra menor. Normalizada por pessoa, cada uma encheria a
+  // largura inteira e as três pareceriam o mesmo trabalho — apagando de vez a
+  // comparação que esta tabela existe para fazer.
+  const maiorCarga = Math.max(
+    1,
+    ...linhas.map((l) => l.realizadas + l.aFazer + l.reagendadas + l.canceladas)
+  )
+
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      {linhas.map((l) => {
-        const marcadas = l.realizadas + l.aFazer + l.reagendadas + l.canceladas
-        const semRelato = l.realizadas - l.comRelato
-        const pct = marcadas === 0 ? 0 : Math.round((l.realizadas / marcadas) * 100)
+    <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200/70">
+      {/* Cabeçalho de coluna só no notebook: no celular cada linha traz seus
+          próprios rótulos, porque o cabeçalho sai da tela ao rolar. */}
+      <div className="hidden items-end gap-4 border-b border-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-400 lg:flex">
+        <span className="w-56 shrink-0">Pessoa</span>
+        <span className="flex-1">Volume e composição</span>
+        <span className="w-16 text-right">Feitas</span>
+        <span className="w-16 text-right">Clientes</span>
+        <span className="w-16 text-right">Em campo</span>
+        <span className="w-14 text-right">%</span>
+      </div>
 
-        return (
-          <Link
-            key={l.usuarioId}
-            href={linkDaGestao({ ...filtros, vendedor: l.usuarioId })}
-            prefetch={false}
-            className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <h3 className="truncate font-display text-lg font-semibold">{l.vendedor}</h3>
-              {l.papel === 'gestor' && (
-                <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
-                  gestor
-                </span>
-              )}
-            </div>
+      <ul className="divide-y divide-slate-100">
+        {linhas.map((l) => {
+          const marcadas = l.realizadas + l.aFazer + l.reagendadas + l.canceladas
+          const semRelato = l.realizadas - l.comRelato
+          const pct = marcadas === 0 ? 0 : Math.round((l.realizadas / marcadas) * 100)
 
-            {/* Três números, cada um com o que ele é logo abaixo. */}
-            <dl className="flex gap-6">
-              <Numero valor={l.realizadas} rotulo="realizadas" destaque />
-              <Numero valor={l.clientesAlcancados} rotulo="clientes atendidos" />
-              <Numero valor={l.diasEmCampo} rotulo="dias em campo" />
-            </dl>
+          return (
+            <li key={l.usuarioId}>
+              <Link
+                href={linkDaGestao({ ...filtros, vendedor: l.usuarioId })}
+                prefetch={false}
+                className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-slate-50 lg:flex-row lg:items-center lg:gap-4"
+              >
+                <div className="flex min-w-0 items-baseline gap-2 lg:w-56 lg:shrink-0">
+                  <span className="truncate font-display font-semibold">{l.vendedor}</span>
+                  {l.papel === 'gestor' && (
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      gestor
+                    </span>
+                  )}
+                  {semRelato > 0 && (
+                    <span
+                      title={`${semRelato} sem relato do que foi tratado`}
+                      className="shrink-0 rounded bg-adiada/10 px-1.5 py-0.5 text-[11px] font-semibold text-adiada"
+                    >
+                      {semRelato} sem relato
+                    </span>
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex h-2.5 gap-[2px] overflow-hidden rounded">
-                {FAIXAS.map((f) => {
-                  const n = l[f.chave]
-                  if (n === 0) return null
-                  return (
-                    <div
-                      key={f.chave}
-                      style={{ width: `${(n / marcadas) * 100}%`, backgroundColor: f.cor }}
-                    />
-                  )
-                })}
-              </div>
-              <p className="text-sm text-slate-600">
-                <span className="font-semibold">{l.realizadas}</span> de {marcadas}{' '}
-                {marcadas === 1 ? 'visita' : 'visitas'} do período — {pct}% feitas
-              </p>
-            </div>
+                {/* A barra é o único desenho da tela, e ganha o espaço por
+                    responder de relance o que a coluna de números responde
+                    devagar: o quanto daquele trabalho virou visita feita. */}
+                <div className="lg:min-w-0 lg:flex-1">
+                  <div
+                    className="flex h-2 gap-[2px] overflow-hidden rounded-full"
+                    style={{ width: `${(marcadas / maiorCarga) * 100}%` }}
+                  >
+                    {FAIXAS.map((f) => {
+                      const n = l[f.chave]
+                      if (n === 0) return null
+                      return (
+                        <div
+                          key={f.chave}
+                          title={`${n} ${f.rotulo}`}
+                          style={{ width: `${(n / marcadas) * 100}%`, backgroundColor: f.cor }}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
 
-            {/* Só aparece quando há o que cobrar. Uma linha em branco dizendo
-                "0 sem relato" ensinaria a ignorar a área inteira. */}
-            {semRelato > 0 && (
-              <p className="text-sm font-medium text-adiada">
-                {semRelato} {semRelato === 1 ? 'realizada' : 'realizadas'} sem relato do que foi
-                tratado
-              </p>
-            )}
-          </Link>
-        )
-      })}
+                <div className="flex gap-5 lg:contents">
+                  <Celula valor={l.realizadas} rotulo="feitas" destaque />
+                  <Celula valor={l.clientesAlcancados} rotulo="clientes" />
+                  <Celula valor={l.diasEmCampo} rotulo="em campo" />
+                  <Celula valor={`${pct}%`} rotulo="feitas" larga={false} />
+                </div>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+
+      {/* A legenda fica no rodapé e não no topo: quem lê a tabela procura os
+          números primeiro, e só volta para a cor quando estranha uma barra. */}
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2">
+        {FAIXAS.map((f) => (
+          <li key={f.chave} className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span
+              className="h-2 w-2 rounded-sm"
+              style={{ backgroundColor: f.cor }}
+              aria-hidden="true"
+            />
+            {f.rotulo}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
 
-function Numero({
+/**
+ * Um número e o que ele é.
+ *
+ * O rótulo aparece no celular, onde não há cabeçalho de coluna para explicar,
+ * e some no notebook, onde a coluna já diz — repetir ali seria dizer a mesma
+ * coisa duas vezes em cada linha.
+ */
+function Celula({
   valor,
   rotulo,
   destaque,
+  larga = true,
 }: {
-  valor: number
+  valor: number | string
   rotulo: string
   destaque?: boolean
+  larga?: boolean
 }) {
   return (
-    <div>
-      <dd
-        className={`font-display font-semibold leading-none ${
-          destaque ? 'text-4xl' : 'text-2xl text-slate-600'
+    <div className={`lg:text-right ${larga ? 'lg:w-16' : 'lg:w-14'}`}>
+      <p
+        className={`font-display font-semibold tabular-nums leading-none ${
+          destaque ? 'text-xl' : 'text-lg text-slate-600'
         }`}
       >
         {valor}
-      </dd>
-      <dt className="mt-1 text-xs text-slate-500">{rotulo}</dt>
+      </p>
+      <p className="mt-0.5 text-xs text-slate-500 lg:hidden">{rotulo}</p>
     </div>
   )
 }

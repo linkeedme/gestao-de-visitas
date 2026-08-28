@@ -1,52 +1,53 @@
 import type { Alerta } from '@/lib/visita/alertas'
 
 /**
- * O bloco que pede ação, e por isso vem antes dos gráficos.
+ * O que pede ação, numa lista densa.
  *
- * Gráfico é contexto; alerta é trabalho. Nas duas telas antigas os alertas
- * ficavam depois dos gráficos — o urgente atrás do ilustrativo, e fora do
- * primeiro olhar de quem abre no celular.
+ * Eram quatro cartões numa grade de duas colunas: com três alertas sobrava
+ * meia linha vazia, e cada cartão gastava altura repetindo moldura e sombra
+ * para dizer um número e uma frase. Como lista, os quatro cabem numa olhada e
+ * a leitura é vertical, que é como se lê uma lista de pendências.
  *
- * O tom apenas reforça o que o texto já diz. Cor sozinha não informa quem não
- * distingue as duas, então "atrasada" é uma palavra antes de ser uma cor.
+ * Vem antes da equipe porque é a única parte da tela que pede alguma coisa —
+ * o resto informa.
  */
 export function Alertas({ alertas }: { alertas: Alerta[] }) {
   if (alertas.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+    <section>
+      <h2 className="px-1 pb-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
         Precisa de atenção
       </h2>
 
-      <div className="grid gap-2 lg:grid-cols-2">
+      <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200/70">
         {alertas.map((a) => (
-          <div key={a.chave} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
-            <p className="flex items-baseline gap-2">
-              <span
-                className={`font-display text-2xl font-semibold ${
-                  a.tom === 'urgente' ? 'text-adiada' : 'text-slate-500'
-                }`}
-              >
-                {a.n}
-              </span>
-              <span className="font-semibold">{a.titulo}</span>
-            </p>
-            <p className="mt-0.5 text-sm text-slate-500">{a.ajuda}</p>
+          <li key={a.chave} className="flex items-baseline gap-3 px-4 py-3">
+            <span
+              className={`w-7 shrink-0 text-right font-display text-xl font-semibold tabular-nums ${
+                a.tom === 'urgente' ? 'text-adiada' : 'text-slate-400'
+              }`}
+            >
+              {a.n}
+            </span>
 
-            <ul className="mt-2 border-t border-slate-100 pt-2 text-sm text-slate-600">
-              {a.detalhe.map((d) => (
-                <li key={d} className="truncate">
-                  {d}
-                </li>
-              ))}
-              {a.n > a.detalhe.length && (
-                <li className="text-slate-400">e mais {a.n - a.detalhe.length}</li>
-              )}
-            </ul>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">{a.titulo}</p>
+              <p className="text-sm text-slate-500">{a.ajuda}</p>
+
+              {/* Os exemplos ficam numa linha só, separados por vírgula. Em
+                  lista vertical eles pareciam registros repetidos — três linhas
+                  quase idênticas seguidas leem como erro, não como amostra. */}
+              <p className="mt-1 truncate text-sm text-slate-600">
+                {a.detalhe.join(' · ')}
+                {a.n > a.detalhe.length && (
+                  <span className="text-slate-400"> · e mais {a.n - a.detalhe.length}</span>
+                )}
+              </p>
+            </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   )
 }

@@ -19,6 +19,18 @@ export type EntradasDeAlerta = {
   foraDoCrm: Visita[]
 }
 
+/**
+ * O cliente na frente, e quem e quando entre parênteses.
+ *
+ * Antes os três vinham separados por ponto, com o mesmo peso: "Davi Torres ·
+ * Vitor Hugo Silva · 26/08/2026" — e quando o cliente e o vendedor têm nome
+ * de gente, três nomes seguidos leem como repetição, não como informação. O
+ * cliente é o que identifica o caso; o resto é contexto.
+ */
+function primeiroNome(nome: string): string {
+  return nome.split(' ')[0]
+}
+
 /** Três exemplos bastam para reconhecer o problema; o resto está na lista. */
 const EXEMPLOS = 3
 
@@ -42,7 +54,7 @@ export function montarAlertas(e: EntradasDeAlerta): Alerta[] {
       tom: 'urgente',
       detalhe: e.vencidas
         .slice(0, EXEMPLOS)
-        .map((v) => `${v.contatoNome} · ${v.vendedor} · ${formatarDia(v.data)}`),
+        .map((v) => `${v.contatoNome} (${primeiroNome(v.vendedor)}, ${formatarDia(v.data)})`),
     },
     {
       chave: 'empurrados',
@@ -53,7 +65,7 @@ export function montarAlertas(e: EntradasDeAlerta): Alerta[] {
       tom: 'urgente',
       detalhe: e.empurrados
         .slice(0, EXEMPLOS)
-        .map((c) => `${c.contatoNome} · ${c.vezes}× · ${c.vendedor}`),
+        .map((c) => `${c.contatoNome} (${c.vezes}×, ${primeiroNome(c.vendedor)})`),
     },
     {
       chave: 'sem-relato',
@@ -63,7 +75,7 @@ export function montarAlertas(e: EntradasDeAlerta): Alerta[] {
       tom: 'atencao',
       detalhe: e.semRelato
         .slice(0, EXEMPLOS)
-        .map((v) => `${v.contatoNome} · ${v.vendedor} · ${formatarDia(v.data)}`),
+        .map((v) => `${v.contatoNome} (${primeiroNome(v.vendedor)}, ${formatarDia(v.data)})`),
     },
     {
       chave: 'sem-visita',
@@ -71,7 +83,7 @@ export function montarAlertas(e: EntradasDeAlerta): Alerta[] {
       titulo: e.emRisco.length === 1 ? 'cliente sem visita' : 'clientes sem visita',
       ajuda: 'Mais de 30 dias desde a última visita realizada.',
       tom: 'atencao',
-      detalhe: e.emRisco.slice(0, EXEMPLOS).map((c) => `${c.contatoNome} · ${c.diasSem} dias`),
+      detalhe: e.emRisco.slice(0, EXEMPLOS).map((c) => `${c.contatoNome} (${c.diasSem} dias)`),
     },
     {
       chave: 'fora-do-crm',
@@ -81,7 +93,7 @@ export function montarAlertas(e: EntradasDeAlerta): Alerta[] {
       tom: 'atencao',
       detalhe: e.foraDoCrm
         .slice(0, EXEMPLOS)
-        .map((v) => `${v.contatoNome} · ${formatarDia(v.data)}`),
+        .map((v) => `${v.contatoNome} (${formatarDia(v.data)})`),
     },
   ]
 

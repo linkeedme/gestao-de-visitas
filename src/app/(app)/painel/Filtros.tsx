@@ -10,18 +10,30 @@ const STATUS = [
   { chave: 'cancelada', rotulo: 'Cancelada' },
 ] as const
 
+/** "22 a 28 de ago", ou "22 de jul a 28 de ago" quando atravessa o mês. */
+function faixaCurta(de: string, ate: string): string {
+  const m = (d: string) =>
+    new Date(`${d}T12:00:00Z`).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' })
+      .replace('.', '')
+  const d1 = Number(de.slice(8, 10))
+  const d2 = Number(ate.slice(8, 10))
+  return de.slice(0, 7) === ate.slice(0, 7)
+    ? `${d1} a ${d2} de ${m(de)}`
+    : `${d1} de ${m(de)} a ${d2} de ${m(ate)}`
+}
+
 /**
- * Tudo o que recorta a tela, num lugar só.
+ * O recorte da tela, numa linha só até alguém querer mudá-lo.
  *
- * Antes o período ficava no topo e pessoa e situação lá embaixo, junto da
- * lista — dois conjuntos de controle que mexem na mesma tela, separados por
- * uma tela inteira de rolagem. Quem chegava embaixo não lembrava do período
- * escolhido em cima, e quem trocava o período em cima não via o filtro de
- * pessoa mudar de resultado embaixo.
+ * Antes isto era um painel que tomava quase metade da tela: dois campos de
+ * data com largura de página inteira, nove pílulas em dois andares, tudo com
+ * altura de alvo de toque de celular aplicada também no notebook. Filtro é
+ * ferramenta, não conteúdo — e estava sendo o maior elemento da página,
+ * empurrando a equipe, que é o assunto, para baixo da dobra.
  *
- * Cada controle é um link comum, e o intervalo livre é um formulário GET: a
- * tela inteira continua sendo servidor, sem JavaScript, e cada combinação de
- * filtros tem seu próprio endereço para mandar para alguém.
+ * Fechado, diz o que está valendo em português: "22 a 28 de ago · toda a
+ * equipe". Aberto, mostra os controles. `<details>` nativo, sem estado no
+ * cliente e sem JavaScript.
  */
 export function Filtros({
   filtros,
@@ -36,85 +48,79 @@ export function Filtros({
 }) {
   const { de, ate, vendedor, status } = filtros
   const link = (troca: Partial<FiltrosGestao>) => linkDaGestao({ ...filtros, ...troca })
-  const filtrando = Boolean(vendedor || status)
+
+  const quem = vendedor
+    ? (vendedores.find((v) => v.id === vendedor)?.nome.split(' ')[0] ?? 'uma pessoa')
+    : 'toda a equipe'
+  const oQue = status ? STATUS.find((s) => s.chave === status)?.rotulo.toLowerCase() : null
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Período</h2>
-        <p className="text-sm text-slate-500">
-          {formatarDia(de)} a {formatarDia(ate)}
-        </p>
-      </div>
+    <details className="group rounded-xl bg-white ring-1 ring-slate-200/70">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm">
+        <span className="font-semibold text-asfalto">{faixaCurta(de, ate)}</span>
+        <span className="text-slate-400" aria-hidden="true">
+          ·
+        </span>
+        <span className="truncate text-slate-600">
+          {quem}
+          {oQue && ` · ${oQue}`}
+        </span>
+        <span className="ml-auto shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-400 group-open:hidden">
+          mudar
+        </span>
+        <span className="ml-auto hidden shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-400 group-open:block">
+          fechar
+        </span>
+      </summary>
 
-      {/* Escolher a data vem primeiro, e os atalhos depois, como atalho: com a
-          ordem invertida a tela parecia oferecer só as quatro faixas prontas, e
-          quem queria um mês fechado ou uma semana específica não achava onde
-          pedir.
+      <div className="flex flex-col gap-3 border-t border-slate-100 p-3">
+        {/* Escolher a data vem antes dos atalhos: com a ordem invertida a tela
+            parecia oferecer só as faixas prontas. Largura de campo de data é
+            largura de data — não de página. */}
+        <form method="get" action="/painel" className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-slate-500">De</span>
+            <input
+              type="date"
+              name="de"
+              defaultValue={de}
+              max={ate}
+              className="h-10 w-[9.5rem] rounded-lg bg-slate-50 px-2.5 text-sm ring-1 ring-slate-300"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-slate-500">Até</span>
+            <input
+              type="date"
+              name="ate"
+              defaultValue={ate}
+              min={de}
+              className="h-10 w-[9.5rem] rounded-lg bg-slate-50 px-2.5 text-sm ring-1 ring-slate-300"
+            />
+          </label>
+          {vendedor && <input type="hidden" name="vendedor" value={vendedor} />}
+          {status && <input type="hidden" name="status" value={status} />}
+          <button
+            type="submit"
+            className="h-10 rounded-lg bg-asfalto px-4 text-sm font-semibold text-white"
+          >
+            Aplicar
+          </button>
 
-          Um GET puro: o `type="date"` abre o calendário nativo do aparelho, e
-          os campos escondidos levam pessoa e situação junto, porque trocar a
-          data não pode apagar o filtro que o gestor acabou de escolher. */}
-      <form method="get" action="/painel" className="flex flex-wrap items-end gap-2">
-        <label className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-xs font-medium text-slate-600">De</span>
-          <input
-            type="date"
-            name="de"
-            defaultValue={de}
-            max={ate}
-            className="min-h-11 w-full rounded-xl bg-slate-50 px-3 text-sm ring-1 ring-slate-300"
-          />
-        </label>
-        <label className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-xs font-medium text-slate-600">Até</span>
-          <input
-            type="date"
-            name="ate"
-            defaultValue={ate}
-            min={de}
-            className="min-h-11 w-full rounded-xl bg-slate-50 px-3 text-sm ring-1 ring-slate-300"
-          />
-        </label>
-        {vendedor && <input type="hidden" name="vendedor" value={vendedor} />}
-        {status && <input type="hidden" name="status" value={status} />}
-        <button
-          type="submit"
-          className="min-h-11 shrink-0 rounded-xl bg-asfalto px-5 text-sm font-semibold text-white"
-        >
-          Aplicar
-        </button>
-      </form>
+          <span className="ml-1 flex flex-wrap items-center gap-1">
+            {ATALHOS.map((a) => (
+              <Pilula
+                key={a.dias}
+                href={link({ de: somarDias(hojeISO, -a.dias), ate: hojeISO })}
+                ativo={a.dias === atalhoAtivo}
+                rotulo={a.rotulo}
+              />
+            ))}
+          </span>
+        </form>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-slate-400">ou</span>
-        {ATALHOS.map((a) => (
-          <Pilula
-            key={a.dias}
-            href={link({ de: somarDias(hojeISO, -a.dias), ate: hojeISO })}
-            ativo={a.dias === atalhoAtivo}
-            rotulo={a.rotulo}
-          />
-        ))}
-      </div>
-
-      <div className="border-t border-slate-100 pt-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-            Quem e o quê
-          </h2>
-          {filtrando && (
-            <Link
-              href={link({ vendedor: '', status: '' })}
-              prefetch={false}
-              className="text-sm font-semibold text-fazer underline-offset-4 hover:underline"
-            >
-              limpar
-            </Link>
-          )}
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1 border-t border-slate-100 pt-3">
+          <Rotulo>Quem</Rotulo>
           <Pilula href={link({ vendedor: '' })} ativo={!vendedor} rotulo="Todos" />
           {vendedores.map((v) => (
             <Pilula
@@ -124,10 +130,9 @@ export function Filtros({
               rotulo={v.nome.split(' ')[0]}
             />
           ))}
-        </div>
 
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <Pilula href={link({ status: '' })} ativo={!status} rotulo="Qualquer situação" />
+          <Rotulo className="ml-3">Situação</Rotulo>
+          <Pilula href={link({ status: '' })} ativo={!status} rotulo="Qualquer" />
           {STATUS.map((s) => (
             <Pilula
               key={s.chave}
@@ -138,7 +143,15 @@ export function Filtros({
           ))}
         </div>
       </div>
-    </section>
+    </details>
+  )
+}
+
+function Rotulo({ children, className = '' }: { children: string; className?: string }) {
+  return (
+    <span className={`text-xs font-bold uppercase tracking-wide text-slate-400 ${className}`}>
+      {children}
+    </span>
   )
 }
 
@@ -148,8 +161,10 @@ function Pilula({ href, ativo, rotulo }: { href: string; ativo: boolean; rotulo:
       href={href}
       prefetch={false}
       aria-current={ativo ? 'true' : undefined}
-      className={`flex min-h-11 items-center rounded-full px-3.5 text-sm font-semibold transition-colors ${
-        ativo ? 'bg-asfalto text-white' : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200'
+      className={`flex h-8 items-center rounded-full px-3 text-xs font-semibold transition-colors ${
+        ativo
+          ? 'bg-asfalto text-white'
+          : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100'
       }`}
     >
       {rotulo}
