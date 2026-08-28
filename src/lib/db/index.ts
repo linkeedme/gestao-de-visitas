@@ -12,6 +12,12 @@ function conectar(): Conexao {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL não configurado')
 
+  // Diagnóstico temporário: `Number('')` é 0, e um pool de zero conexões
+  // espera para sempre. Só o registro em produção diz qual valor chegou aqui.
+  console.log(
+    `[PERF] pool: DB_POOL_MAX=${JSON.stringify(process.env.DB_POOL_MAX)} -> max=${Number(process.env.DB_POOL_MAX ?? 3)} | host=${url.split('@')[1]?.split('/')[0]}`
+  )
+
   const cliente = postgres(url, {
     // O pooler de transação do Supabase (porta 6543) não suporta prepared
     // statements: cada requisição pode cair numa conexão diferente do pool,

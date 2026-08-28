@@ -67,19 +67,19 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas] =
     await medir('painel:9consultas', () => Promise.all([
-      kpisPorVendedor(db, de, ate),
-      listarNaoSincronizadas(db),
-      contarAgendadasAdiante(db, ate),
-      serieDiaria(db, de, ate),
-      porTipo(db, de, ate),
+      medir('q1-kpis', () => kpisPorVendedor(db, de, ate)),
+      medir('q2-foraDoCrm', () => listarNaoSincronizadas(db)),
+      medir('q3-adiante', () => contarAgendadasAdiante(db, ate)),
+      medir('q4-serie', () => serieDiaria(db, de, ate)),
+      medir('q5-tipos', () => porTipo(db, de, ate)),
       // Estes dois recebem `hojeISO`, não `ate`: atraso é uma pergunta sobre o
       // presente. Com intervalo livre, passar `ate` faria a tela de julho
       // responder o que estava atrasado em julho — e o gestor leria como
       // situação de agora.
-      clientesEmRisco(db, hojeISO, 30),
-      reagendamentosEmSerie(db, de, ate),
-      realizadasSemRelato(db, de, ate),
-      atrasadas(db, hojeISO),
+      medir('q6-emRisco', () => clientesEmRisco(db, hojeISO, 30)),
+      medir('q7-empurrados', () => reagendamentosEmSerie(db, de, ate)),
+      medir('q8-semRelato', () => realizadasSemRelato(db, de, ate)),
+      medir('q9-atrasadas', () => atrasadas(db, hojeISO)),
     ]))
 
   console.log(`[PERF] painel:ate-render ${Date.now() - tudo}ms`)
