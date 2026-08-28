@@ -18,6 +18,7 @@ import {
   atrasadas,
 } from '@/lib/visita/relatorios'
 import { montarAlertas } from '@/lib/visita/alertas'
+import { medir } from '@/lib/medir'
 import { linkDaGestao, type FiltrosGestao } from '@/lib/rotas'
 import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
 import { ATALHOS, intervaloDoFiltro } from '@/lib/visita/periodo'
@@ -43,7 +44,8 @@ type StatusFiltro = (typeof STATUS_VALIDOS)[number]
  * alerta é trabalho.
  */
 export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
-  await exigirGestor()
+  const tudo = Date.now()
+  await medir('painel:auth', () => exigirGestor())
   const { de: deParam, ate: ateParam, periodo, vendedor, status } = await searchParams
 
   const texto = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
@@ -64,7 +66,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
   const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas] =
-    await Promise.all([
+    await medir('painel:9consultas', () => Promise.all([
       kpisPorVendedor(db, de, ate),
       listarNaoSincronizadas(db),
       contarAgendadasAdiante(db, ate),
@@ -78,7 +80,9 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
       reagendamentosEmSerie(db, de, ate),
       realizadasSemRelato(db, de, ate),
       atrasadas(db, hojeISO),
-    ])
+    ]))
+
+  console.log(`[PERF] painel:ate-render ${Date.now() - tudo}ms`)
 
   const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
 
@@ -206,7 +210,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 }
 
 async function BlocoAuditoria({ filtros }: { filtros: FiltrosGestao }) {
-  const [visitas, vendedores] = await Promise.all([
+  const [visitas, vendedores] = await medir('painel:auditoria', () => Promise.all([
     listarParaAuditoria(db, {
       de: filtros.de,
       ate: filtros.ate,
@@ -214,7 +218,7 @@ async function BlocoAuditoria({ filtros }: { filtros: FiltrosGestao }) {
       status: filtros.status as StatusFiltro | undefined,
     }),
     vendedoresComVisita(db, filtros.de, filtros.ate),
-  ])
+  ]))
 
   return <Auditoria visitas={visitas} vendedores={vendedores} filtros={filtros} />
 }

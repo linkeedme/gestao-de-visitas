@@ -1,11 +1,12 @@
 import { exigirUsuario } from '@/lib/auth/atual'
+import { medir } from '@/lib/medir'
 import { BotaoSair } from '@/components/BotaoSair'
 import { BarraInferior, BarraLateral } from '@/components/Navegacao'
 
 export const dynamic = 'force-dynamic'
 
 export default async function LayoutApp({ children }: LayoutProps<'/'>) {
-  const u = await exigirUsuario()
+  const u = await medir('layout:sessao', () => exigirUsuario())
   const primeiroNome = u.nome.split(' ')[0]
   const ehGestor = u.papel === 'gestor'
 
