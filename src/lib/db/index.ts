@@ -5,18 +5,39 @@ import * as schema from './schema'
 type Conexao = ReturnType<typeof drizzle<typeof schema>>
 
 let conexao: Conexao | undefined
+let clienteAtual: ReturnType<typeof postgres> | undefined
+
+/**
+ * Joga fora o pool e obriga a próxima consulta a abrir conexão nova.
+ *
+ * Existe por causa de como a Vercel trata a função entre requisições: ela é
+ * congelada, não encerrada. As conexões TCP morrem enquanto isso, mas o pool
+ * acorda achando que ainda tem três conexões boas. A consulta então é escrita
+ * num socket que ninguém atende do outro lado, e fica esperando uma resposta
+ * que não vem — foi assim que o painel e a tela de equipe prenderam a função
+ * pelos trezentos segundos inteiros da Vercel.
+ *
+ * É o que explica "abri e funcionou, saí e voltei e travou": a primeira
+ * requisição abre a conexão, e a segunda herda o cadáver.
+ *
+ * Nenhum dos tempos-limite existentes cobre isso. `connect_timeout` vale para
+ * abrir a conexão, e `statement_timeout` é imposto pelo servidor — que nunca
+ * chega a receber a consulta.
+ */
+export function descartarConexao(): void {
+  const antigo = clienteAtual
+  conexao = undefined
+  clienteAtual = undefined
+  // Sem esperar: a conexão provavelmente já está morta, e prender o
+  // encerramento aqui repetiria o problema que ele existe para resolver.
+  antigo?.end({ timeout: 0 }).catch(() => {})
+}
 
 function conectar(): Conexao {
   if (conexao) return conexao
 
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL não configurado')
-
-  // Diagnóstico temporário: `Number('')` é 0, e um pool de zero conexões
-  // espera para sempre. Só o registro em produção diz qual valor chegou aqui.
-  console.log(
-    `[PERF] pool: DB_POOL_MAX=${JSON.stringify(process.env.DB_POOL_MAX)} -> max=${Number(process.env.DB_POOL_MAX ?? 3)} | host=${url.split('@')[1]?.split('/')[0]}`
-  )
 
   const cliente = postgres(url, {
     // O pooler de transação do Supabase (porta 6543) não suporta prepared
@@ -44,6 +65,12 @@ function conectar(): Conexao {
     // 250ms; a que não vier em 10s não vem mais, e falhar rápido devolve à
     // pessoa uma tela com recado em vez de cinco minutos de espera.
     connect_timeout: 10,
+    // O padrão da biblioteca é de trinta a sessenta MINUTOS, pensado para um
+    // servidor que fica de pé. Aqui a instância dorme entre requisições e a
+    // conexão morre dormindo, então guardá-la por meia hora é guardar um
+    // cadáver. Um minuto é mais que suficiente para aproveitar a conexão
+    // dentro de uma navegação e curto o bastante para não atravessar a soneca.
+    max_lifetime: 60,
     connection: {
       // Uma consulta que passa de 15s aqui não está lenta, está presa: as
       // telas leem tabelas pequenas e por índice. Sem teto, ela ocupa uma das
@@ -59,6 +86,7 @@ function conectar(): Conexao {
     },
   })
 
+  clienteAtual = cliente
   conexao = drizzle(cliente, { schema })
   return conexao
 }

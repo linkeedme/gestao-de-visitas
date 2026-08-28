@@ -1,5 +1,6 @@
 import { exigirGestor } from '@/lib/auth/atual'
 import { listarUsuarios } from '@/lib/auth/usuarios'
+import { comTeto } from '@/lib/medir'
 import { listarAgentes } from '@/lib/zaple/agentes'
 import { listarNaoSincronizadas, db } from '@/lib/visita/repositorio'
 import { FormUsuario } from './FormUsuario'
@@ -10,11 +11,11 @@ export const dynamic = 'force-dynamic'
 
 export default async function Admin() {
   const eu = await exigirGestor()
-  const [usuarios, agentes, pendentes] = await Promise.all([
+  const [usuarios, agentes, pendentes] = await comTeto('admin:consultas', 8, () => Promise.all([
     listarUsuarios(),
     listarAgentes(),
     listarNaoSincronizadas(db),
-  ])
+  ]))
 
   const vendedores = usuarios.filter((u) => u.papel === 'vendedor')
   const gestores = usuarios.filter((u) => u.papel === 'gestor')

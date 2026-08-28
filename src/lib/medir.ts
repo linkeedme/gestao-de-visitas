@@ -1,3 +1,5 @@
+import { descartarConexao } from '@/lib/db'
+
 /**
  * Cronômetro de diagnóstico para o servidor.
  *
@@ -37,10 +39,14 @@ export function comTeto<T>(etapa: string, segundos: number, f: () => Promise<T>)
   return Promise.race([
     f(),
     new Promise<never>((_, rejeitar) =>
-      setTimeout(
-        () => rejeitar(new Error(`[PERF] ${etapa} passou de ${segundos}s e foi abandonada`)),
-        segundos * 1000
-      )
+      setTimeout(() => {
+        // Uma consulta que não volta nesse prazo é quase sempre uma conexão
+        // que morreu enquanto a instância dormia. Jogar o pool fora aqui é o
+        // que impede a requisição seguinte de herdar o mesmo cadáver e travar
+        // igual — sem isto, a pessoa recarregaria a página para sempre.
+        descartarConexao()
+        rejeitar(new Error(`[PERF] ${etapa} passou de ${segundos}s e foi abandonada`))
+      }, segundos * 1000)
     ),
   ])
 }

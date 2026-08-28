@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { listarDoPeriodo, contarPorDia, db } from '@/lib/visita/repositorio'
 import { hoje, diasEntre } from '@/lib/visita/datas'
+import { comTeto } from '@/lib/medir'
 import {
   VISTAS,
   vistaValida,
@@ -64,8 +65,12 @@ export default async function Agenda({ searchParams }: PageProps<'/agenda'>) {
   // O mês lê contagens, não visitas: são 42 células de quatro números, e
   // trazer 300 linhas com relato e nome de cliente para desenhar bolinha
   // seria trabalho jogado fora.
-  const visitas = v === 'mes' ? [] : await listarDoPeriodo(db, { de, ate, usuarioId })
-  const contagens = v === 'mes' ? await contarPorDia(db, { de, ate, usuarioId }) : []
+  const [visitas, contagens] = await comTeto('agenda:consultas', 8, () =>
+    Promise.all([
+      v === 'mes' ? Promise.resolve([]) : listarDoPeriodo(db, { de, ate, usuarioId }),
+      v === 'mes' ? contarPorDia(db, { de, ate, usuarioId }) : Promise.resolve([]),
+    ])
+  )
 
   const total =
     v === 'mes'
