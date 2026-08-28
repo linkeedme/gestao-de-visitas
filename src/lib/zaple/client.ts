@@ -3,6 +3,23 @@ import { ZapleError, vaTentarDeNovo } from './erros'
 const TENTATIVAS = 3
 const ESPERA_BASE_MS = 300
 
+/**
+ * Teto de cada tentativa. O `fetch` do Node não tem prazo nenhum por padrão:
+ * uma chamada que fica sem resposta prende a requisição até o limite da
+ * Vercel, e como isto roda antes de a página ou o POST responderem, quem
+ * ficava parado era a pessoa segurando o celular.
+ */
+const POR_TENTATIVA_MS = Number(process.env.ZAPLE_TIMEOUT_MS ?? 8_000)
+
+/**
+ * Teto do conjunto, retentativas e esperas incluídas.
+ *
+ * Sem ele o teto por tentativa se multiplicava: três tentativas de oito
+ * segundos mais o backoff passavam de vinte e cinco, o que é o mesmo travamento
+ * mais devagar. Passado o orçamento, a chamada desiste com o último erro.
+ */
+const ORCAMENTO_MS = Number(process.env.ZAPLE_ORCAMENTO_MS ?? 12_000)
+
 type Params = Record<string, string | string[] | number | undefined>
 
 function montarUrl(caminho: string, params?: Params): string {
@@ -53,9 +70,13 @@ async function requisitar<T>(
   if (!token) throw new Error('ZAPLE_TOKEN não configurado')
 
   const url = montarUrl(caminho, params)
+  const fim = Date.now() + ORCAMENTO_MS
   let ultimoErro: unknown
 
   for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    const restante = fim - Date.now()
+    if (restante <= 0) break
+
     try {
       const resposta = await fetch(url, {
         method: metodo,
@@ -66,6 +87,7 @@ async function requisitar<T>(
         },
         ...(corpo !== undefined ? { body: JSON.stringify(corpo) } : {}),
         cache: 'no-store',
+        signal: AbortSignal.timeout(Math.min(POR_TENTATIVA_MS, restante)),
       })
 
       const texto = await resposta.text()
@@ -75,10 +97,12 @@ async function requisitar<T>(
     } catch (erro) {
       ultimoErro = erro
       if (!vaTentarDeNovo(erro) || tentativa === TENTATIVAS) break
-      await esperar(ESPERA_BASE_MS * 2 ** (tentativa - 1))
+      const espera = ESPERA_BASE_MS * 2 ** (tentativa - 1)
+      if (fim - Date.now() <= espera) break
+      await esperar(espera)
     }
   }
-  throw ultimoErro
+  throw ultimoErro ?? new Error(`Zaple não respondeu em ${ORCAMENTO_MS}ms`)
 }
 
 export const zapleGet = <T>(caminho: string, params?: Params) =>

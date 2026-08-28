@@ -7,56 +7,59 @@ type Conexao = ReturnType<typeof drizzle<typeof schema>>
 let conexao: Conexao | undefined
 let clienteAtual: ReturnType<typeof postgres> | undefined
 
+/** Relógio da última vez que alguém pediu o banco. */
+let ultimoUso = 0
+
 /**
- * Joga fora o pool e obriga a próxima consulta a abrir conexão nova.
+ * Quanto tempo parado basta para não confiar mais no pool.
  *
- * Existe por causa de como a Vercel trata a função entre requisições: ela é
- * congelada, não encerrada. As conexões TCP morrem enquanto isso, mas o pool
- * acorda achando que ainda tem três conexões boas. A consulta então é escrita
- * num socket que ninguém atende do outro lado, e fica esperando uma resposta
- * que não vem — foi assim que o painel e a tela de equipe prenderam a função
- * pelos trezentos segundos inteiros da Vercel.
+ * O problema original continua real: a Vercel congela a função entre
+ * requisições em vez de encerrá-la, as conexões TCP morrem durante a soneca, e
+ * o pool acorda achando que ainda tem três conexões boas. A consulta é escrita
+ * num socket que ninguém atende e fica esperando uma resposta que não vem.
  *
- * É o que explica "abri e funcionou, saí e voltei e travou": a primeira
- * requisição abre a conexão, e a segunda herda o cadáver.
+ * O que mudou é ONDE a conexão é jogada fora. Antes era na saída de cada
+ * requisição, e isso trocava o travamento por outro: numa instância que atende
+ * mais de uma requisição ao mesmo tempo, a primeira a terminar fechava o pool
+ * embaixo das outras. Era o que travava o app quando se tocava em duas coisas
+ * seguidas — a navegação terminava, matava a conexão, e o POST que ainda
+ * estava gravando morria com ela ou ficava pendurado.
  *
- * Nenhum dos tempos-limite existentes cobre isso. `connect_timeout` vale para
- * abrir a conexão, e `statement_timeout` é imposto pelo servidor — que nunca
- * chega a receber a consulta.
+ * Agora a troca é na ENTRADA e por idade: se ninguém usou o banco nos últimos
+ * dez segundos, houve tempo de sobra para a instância ter congelado, então a
+ * próxima consulta nasce com pool novo. Dois cliques em sequência caem dentro
+ * da janela e compartilham o mesmo pool quente — nenhum deles derruba o outro,
+ * e nenhum paga um handshake novo.
+ *
+ * `DB_OCIOSIDADE_MAX_MS` regula a janela. Um valor bem baixo volta ao
+ * comportamento antigo, de conexão nova a cada requisição.
  */
+const OCIOSIDADE_MAXIMA_MS = Number(process.env.DB_OCIOSIDADE_MAX_MS ?? 10_000)
+
+/**
+ * Prazo para o pool velho terminar o que estava fazendo antes de ser
+ * destruído.
+ *
+ * Alinhado ao `statement_timeout`: consulta que o servidor ainda honraria
+ * chega ao fim; a que já estava presa morre junto com o pool, que é o
+ * desfecho desejado. `timeout: 0` destruiria o socket na hora e mataria
+ * consulta em voo — foi o que produziu CONNECTION_DESTROYED em produção.
+ */
+const DRENAGEM_S = 15
+
+/** Joga fora o pool e obriga a próxima consulta a abrir conexão nova. */
 export function descartarConexao(): void {
   const antigo = clienteAtual
   conexao = undefined
   clienteAtual = undefined
-  // Com prazo, e não à força. `timeout: 0` destrói o socket na hora, e
-  // qualquer consulta ainda em voo morre com ele — foi o que aconteceu em
-  // produção quando um temporizador de vida máxima disparou no meio de uma
-  // requisição: CONNECTION_DESTROYED em consultas diferentes a cada vez,
-  // conforme o sorteio de qual estava rodando. Cinco segundos deixam quem
-  // está no meio terminar.
-  antigo?.end({ timeout: 5 }).catch(() => {})
-}
-
-/**
- * Requisições que ainda estão usando a conexão neste instante.
- *
- * Uma instância da Vercel atende mais de uma requisição ao mesmo tempo. Sem
- * esta contagem, a primeira a terminar fecharia a conexão embaixo das outras
- * — trocando um travamento por um erro, que é pior porque parece aleatório.
- */
-let emVoo = 0
-
-export function abrirRequisicao(): void {
-  emVoo++
-}
-
-/** Fecha a conexão quando a última requisição em curso termina. */
-export function fecharRequisicao(): void {
-  emVoo = Math.max(0, emVoo - 1)
-  if (emVoo === 0) descartarConexao()
+  antigo?.end({ timeout: DRENAGEM_S }).catch(() => {})
 }
 
 function conectar(): Conexao {
+  const agora = Date.now()
+  if (conexao && agora - ultimoUso > OCIOSIDADE_MAXIMA_MS) descartarConexao()
+  ultimoUso = agora
+
   if (conexao) return conexao
 
   const url = process.env.DATABASE_URL

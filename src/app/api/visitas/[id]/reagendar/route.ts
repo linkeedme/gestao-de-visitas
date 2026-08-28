@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { buscarVisita, reagendar, db } from '@/lib/visita/repositorio'
-import { sincronizar } from '@/lib/visita/sincronizador'
+import { espelharNoZaple } from '@/lib/api/espelho'
 import { erroDeValidacao } from '@/lib/api/erros'
 
 const Entrada = z.object({
@@ -35,11 +35,12 @@ export async function POST(req: Request, { params }: RouteContext<'/api/visitas/
   }
 
   const r = await reagendar(db, id, analisado.data.data)
-  await sincronizar(db, r!.fechada)
-  await sincronizar(db, r!.nova)
+  await espelharNoZaple(db, r!.fechada, r!.nova)
 
-  // Reler porque `sincronizar` grava `card_id` e `sincronizado_em`: devolver o
-  // objeto capturado antes faria a resposta jurar que nada sincronizou.
+  // Reler porque o espelho grava `card_id` e `sincronizado_em`: devolver o
+  // objeto capturado antes faria a resposta jurar que nada sincronizou. Se o
+  // Zaple passou do prazo, `sincronizado_em` ainda vem nulo e a tela mostra o
+  // aviso até o próximo refresh — o envio termina sozinho depois da resposta.
   const atualizada = await buscarVisita(db, r!.nova.id)
 
   return Response.json({ visita: atualizada ?? r!.nova }, { status: 201 })

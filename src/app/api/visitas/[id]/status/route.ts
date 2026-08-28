@@ -7,7 +7,7 @@ import {
   realizarComRetorno,
   db,
 } from '@/lib/visita/repositorio'
-import { sincronizar } from '@/lib/visita/sincronizador'
+import { espelharNoZaple } from '@/lib/api/espelho'
 import { erroDeValidacao } from '@/lib/api/erros'
 
 const DataISO = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve ser AAAA-MM-DD')
@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: RouteContext<'/api/visitas/
       )
     }
     const reaberta = await reabrirVisita(db, id)
-    await sincronizar(db, reaberta!)
+    await espelharNoZaple(db, reaberta)
     return Response.json({ visita: await buscarVisita(db, id) })
   }
 
@@ -61,7 +61,7 @@ export async function POST(req: Request, { params }: RouteContext<'/api/visitas/
 
   if (destino === 'cancelada') {
     const alterada = await mudarStatus(db, id, 'cancelada')
-    await sincronizar(db, alterada!)
+    await espelharNoZaple(db, alterada)
     return Response.json({ visita: (await buscarVisita(db, id)) ?? alterada })
   }
 
@@ -78,8 +78,7 @@ export async function POST(req: Request, { params }: RouteContext<'/api/visitas/
     analisado.data.proximaVisita
   )
 
-  await sincronizar(db, r!.realizada)
-  if (r!.proxima) await sincronizar(db, r!.proxima)
+  await espelharNoZaple(db, r!.realizada, r!.proxima)
 
   return Response.json({
     visita: (await buscarVisita(db, id)) ?? r!.realizada,

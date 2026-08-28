@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { buscarVisita, editarVisita, db } from '@/lib/visita/repositorio'
-import { sincronizar } from '@/lib/visita/sincronizador'
+import { espelharNoZaple } from '@/lib/api/espelho'
 import { VALORES_TIPO } from '@/lib/visita/tipos'
 import { erroDeValidacao } from '@/lib/api/erros'
 
@@ -49,7 +49,7 @@ export async function PATCH(req: Request, { params }: RouteContext<'/api/visitas
   }
 
   const alterada = await editarVisita(db, id, analisado.data)
-  await sincronizar(db, alterada!)
+  await espelharNoZaple(db, alterada)
 
   return Response.json({ visita: (await buscarVisita(db, id)) ?? alterada })
 }

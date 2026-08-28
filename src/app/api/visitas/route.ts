@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { criarVisita, listarDoDia, buscarVisita, db } from '@/lib/visita/repositorio'
-import { sincronizar } from '@/lib/visita/sincronizador'
+import { espelharNoZaple } from '@/lib/api/espelho'
 import { VALORES_TIPO } from '@/lib/visita/tipos'
 import { hoje } from '@/lib/visita/datas'
 import { erroDeValidacao } from '@/lib/api/erros'
@@ -71,10 +71,12 @@ export async function POST(req: Request) {
   // A visita já existe. O Zaple é cópia: se falhar, `sincronizado_em` fica
   // nulo e o admin reprocessa. O vendedor não fica sabendo, porque para ele
   // não houve erro nenhum.
-  await sincronizar(db, criada)
+  await espelharNoZaple(db, criada)
 
-  // Reler porque `sincronizar` grava `card_id` e `sincronizado_em`: devolver o
-  // objeto capturado antes faria a resposta jurar que nada sincronizou.
+  // Reler porque o espelho grava `card_id` e `sincronizado_em`: devolver o
+  // objeto capturado antes faria a resposta jurar que nada sincronizou. Se o
+  // Zaple passou do prazo, `sincronizado_em` ainda vem nulo e a tela mostra o
+  // aviso até o próximo refresh — o envio termina sozinho depois da resposta.
   const atualizada = await buscarVisita(db, criada.id)
 
   return Response.json({ visita: atualizada ?? criada }, { status: 201 })
