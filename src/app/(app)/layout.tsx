@@ -1,4 +1,6 @@
+import { after } from 'next/server'
 import { exigirUsuario } from '@/lib/auth/atual'
+import { abrirRequisicao, fecharRequisicao } from '@/lib/db'
 import { medir } from '@/lib/medir'
 import { BotaoSair } from '@/components/BotaoSair'
 import { BarraInferior, BarraLateral } from '@/components/Navegacao'
@@ -6,6 +8,31 @@ import { BarraInferior, BarraLateral } from '@/components/Navegacao'
 export const dynamic = 'force-dynamic'
 
 export default async function LayoutApp({ children }: LayoutProps<'/'>) {
+  /**
+   * A conexão com o banco morre com a requisição, de propósito.
+   *
+   * A Vercel congela a função entre requisições em vez de encerrá-la. Guardar
+   * a conexão para a próxima parecia economia, mas o que ficava guardado era
+   * um socket que o outro lado já tinha derrubado: a primeira requisição
+   * funcionava e a seguinte escrevia num cano sem ninguém do outro lado,
+   * esperando os trezentos segundos inteiros da Vercel. Aconteceu no painel,
+   * na tela de equipe — que faz uma consulta só — e na agenda.
+   *
+   * Tentamos remendar por fora, com prazos e vida curta, e cada remendo
+   * deixava uma fresta. Não guardar a conexão fecha o problema por
+   * construção: não existe conexão velha se nenhuma atravessa a soneca.
+   *
+   * O preço é abrir uma conexão por requisição — de vinte a cinquenta
+   * milésimos, agora que a função roda em São Paulo, ao lado do banco. Antes
+   * dessa mudança de região seria caro; hoje é troco pelo problema que
+   * elimina.
+   *
+   * `after` roda depois que a resposta terminou de ser enviada, então isto
+   * não corta nada que ainda esteja sendo transmitido.
+   */
+  abrirRequisicao()
+  after(() => fecharRequisicao())
+
   const u = await medir('layout:sessao', () => exigirUsuario())
   const primeiroNome = u.nome.split(' ')[0]
   const ehGestor = u.papel === 'gestor'

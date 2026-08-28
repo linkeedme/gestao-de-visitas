@@ -33,6 +33,25 @@ export function descartarConexao(): void {
   antigo?.end({ timeout: 0 }).catch(() => {})
 }
 
+/**
+ * Requisições que ainda estão usando a conexão neste instante.
+ *
+ * Uma instância da Vercel atende mais de uma requisição ao mesmo tempo. Sem
+ * esta contagem, a primeira a terminar fecharia a conexão embaixo das outras
+ * — trocando um travamento por um erro, que é pior porque parece aleatório.
+ */
+let emVoo = 0
+
+export function abrirRequisicao(): void {
+  emVoo++
+}
+
+/** Fecha a conexão quando a última requisição em curso termina. */
+export function fecharRequisicao(): void {
+  emVoo = Math.max(0, emVoo - 1)
+  if (emVoo === 0) descartarConexao()
+}
+
 function conectar(): Conexao {
   if (conexao) return conexao
 
