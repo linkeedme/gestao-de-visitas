@@ -28,9 +28,13 @@ export function descartarConexao(): void {
   const antigo = clienteAtual
   conexao = undefined
   clienteAtual = undefined
-  // Sem esperar: a conexão provavelmente já está morta, e prender o
-  // encerramento aqui repetiria o problema que ele existe para resolver.
-  antigo?.end({ timeout: 0 }).catch(() => {})
+  // Com prazo, e não à força. `timeout: 0` destrói o socket na hora, e
+  // qualquer consulta ainda em voo morre com ele — foi o que aconteceu em
+  // produção quando um temporizador de vida máxima disparou no meio de uma
+  // requisição: CONNECTION_DESTROYED em consultas diferentes a cada vez,
+  // conforme o sorteio de qual estava rodando. Cinco segundos deixam quem
+  // está no meio terminar.
+  antigo?.end({ timeout: 5 }).catch(() => {})
 }
 
 /**
@@ -84,12 +88,6 @@ function conectar(): Conexao {
     // 250ms; a que não vier em 10s não vem mais, e falhar rápido devolve à
     // pessoa uma tela com recado em vez de cinco minutos de espera.
     connect_timeout: 10,
-    // O padrão da biblioteca é de trinta a sessenta MINUTOS, pensado para um
-    // servidor que fica de pé. Aqui a instância dorme entre requisições e a
-    // conexão morre dormindo, então guardá-la por meia hora é guardar um
-    // cadáver. Um minuto é mais que suficiente para aproveitar a conexão
-    // dentro de uma navegação e curto o bastante para não atravessar a soneca.
-    max_lifetime: 60,
     connection: {
       // Uma consulta que passa de 15s aqui não está lenta, está presa: as
       // telas leem tabelas pequenas e por índice. Sem teto, ela ocupa uma das

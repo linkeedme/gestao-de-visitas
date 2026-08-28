@@ -1,5 +1,3 @@
-import { descartarConexao } from '@/lib/db'
-
 /**
  * Teto de tempo para uma etapa que não pode prender a página.
  *
@@ -19,14 +17,13 @@ export function comTeto<T>(etapa: string, segundos: number, f: () => Promise<T>)
   return Promise.race([
     f(),
     new Promise<never>((_, rejeitar) =>
-      setTimeout(() => {
-        // Uma consulta que não volta nesse prazo é quase sempre uma conexão
-        // que morreu enquanto a instância dormia. Jogar o pool fora aqui é o
-        // que impede a requisição seguinte de herdar o mesmo cadáver e travar
-        // igual — sem isto, a pessoa recarregaria a página para sempre.
-        descartarConexao()
-        rejeitar(new Error(`${etapa} passou de ${segundos}s e foi abandonada`))
-      }, segundos * 1000)
+      // Só rejeita. Descartar o pool aqui seria mais um caminho capaz de
+      // destruir conexão que outra requisição está usando — e o fechamento
+      // ao fim de cada requisição já garante que a próxima nasça limpa.
+      setTimeout(
+        () => rejeitar(new Error(`${etapa} passou de ${segundos}s e foi abandonada`)),
+        segundos * 1000
+      )
     ),
   ])
 }
