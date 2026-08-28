@@ -18,13 +18,14 @@ import {
   atrasadas,
 } from '@/lib/visita/relatorios'
 import { montarAlertas } from '@/lib/visita/alertas'
-import { medir, comTeto } from '@/lib/medir'
-import { linkDaGestao, type FiltrosGestao } from '@/lib/rotas'
-import { hoje, somarDias, formatarDia } from '@/lib/visita/datas'
-import { ATALHOS, intervaloDoFiltro } from '@/lib/visita/periodo'
+import { comTeto } from '@/lib/teto'
+import type { FiltrosGestao } from '@/lib/rotas'
+import { hoje, somarDias } from '@/lib/visita/datas'
+import { intervaloDoFiltro } from '@/lib/visita/periodo'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 import { BarrasPorDia, BarrasPorPessoa, PorTipo, Legenda, CORES } from './Graficos'
 import { Alertas } from './Alertas'
+import { Filtros } from './Filtros'
 import { Auditoria } from './Auditoria'
 
 export const dynamic = 'force-dynamic'
@@ -44,8 +45,7 @@ type StatusFiltro = (typeof STATUS_VALIDOS)[number]
  * alerta é trabalho.
  */
 export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
-  const tudo = Date.now()
-  await medir('painel:auth', () => exigirGestor())
+  await exigirGestor()
   const { de: deParam, ate: ateParam, periodo, vendedor, status } = await searchParams
 
   const texto = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
@@ -65,24 +65,23 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
-  const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas] =
+  const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas, vendedores] =
     await comTeto('painel:9consultas', 8, () => Promise.all([
-      medir('q1-kpis', () => kpisPorVendedor(db, de, ate)),
-      medir('q2-foraDoCrm', () => listarNaoSincronizadas(db)),
-      medir('q3-adiante', () => contarAgendadasAdiante(db, ate)),
-      medir('q4-serie', () => serieDiaria(db, de, ate)),
-      medir('q5-tipos', () => porTipo(db, de, ate)),
+      kpisPorVendedor(db, de, ate),
+      listarNaoSincronizadas(db),
+      contarAgendadasAdiante(db, ate),
+      serieDiaria(db, de, ate),
+      porTipo(db, de, ate),
       // Estes dois recebem `hojeISO`, não `ate`: atraso é uma pergunta sobre o
       // presente. Com intervalo livre, passar `ate` faria a tela de julho
       // responder o que estava atrasado em julho — e o gestor leria como
       // situação de agora.
-      medir('q6-emRisco', () => clientesEmRisco(db, hojeISO, 30)),
-      medir('q7-empurrados', () => reagendamentosEmSerie(db, de, ate)),
-      medir('q8-semRelato', () => realizadasSemRelato(db, de, ate)),
-      medir('q9-atrasadas', () => atrasadas(db, hojeISO)),
+      clientesEmRisco(db, hojeISO, 30),
+      reagendamentosEmSerie(db, de, ate),
+      realizadasSemRelato(db, de, ate),
+      atrasadas(db, hojeISO),
+      vendedoresComVisita(db, de, ate),
     ]))
-
-  console.log(`[PERF] painel:ate-render ${Date.now() - tudo}ms`)
 
   const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
 
@@ -103,34 +102,14 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold">Gestão</h1>
-          <p className="text-sm text-slate-500">
-            {formatarDia(de)} a {formatarDia(ate)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {ATALHOS.map((a) => (
-            <Link
-              key={a.dias}
-              href={linkDaGestao({
-                ...filtros,
-                de: somarDias(hojeISO, -a.dias),
-                ate: hojeISO,
-              })}
-              prefetch={false}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                a.dias === atalhoAtivo
-                  ? 'bg-asfalto text-white'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {a.rotulo}
-            </Link>
-          ))}
-        </div>
-      </div>
+      <h1 className="font-display text-2xl font-semibold">Gestão</h1>
+
+      <Filtros
+        filtros={filtros}
+        hojeISO={hojeISO}
+        atalhoAtivo={atalhoAtivo}
+        vendedores={vendedores}
+      />
 
       {/* ❶ O número que responde à pergunta do gestor antes de qualquer
           gráfico: quanto de trabalho foi feito. O resto contextualiza. */}
@@ -210,17 +189,14 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 }
 
 async function BlocoAuditoria({ filtros }: { filtros: FiltrosGestao }) {
-  const [visitas, vendedores] = await medir('painel:auditoria', () => Promise.all([
-    listarParaAuditoria(db, {
-      de: filtros.de,
-      ate: filtros.ate,
-      usuarioId: filtros.vendedor,
-      status: filtros.status as StatusFiltro | undefined,
-    }),
-    vendedoresComVisita(db, filtros.de, filtros.ate),
-  ]))
+  const visitas = await listarParaAuditoria(db, {
+    de: filtros.de,
+    ate: filtros.ate,
+    usuarioId: filtros.vendedor,
+    status: filtros.status as StatusFiltro | undefined,
+  })
 
-  return <Auditoria visitas={visitas} vendedores={vendedores} filtros={filtros} />
+  return <Auditoria visitas={visitas} filtros={filtros} />
 }
 
 function EsqueletoAuditoria() {

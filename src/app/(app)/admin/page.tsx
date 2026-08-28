@@ -1,6 +1,6 @@
 import { exigirGestor } from '@/lib/auth/atual'
 import { listarUsuarios } from '@/lib/auth/usuarios'
-import { comTeto } from '@/lib/medir'
+import { comTeto } from '@/lib/teto'
 import { listarAgentes } from '@/lib/zaple/agentes'
 import { listarNaoSincronizadas, db } from '@/lib/visita/repositorio'
 import { FormUsuario } from './FormUsuario'

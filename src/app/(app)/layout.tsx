@@ -1,7 +1,6 @@
 import { after } from 'next/server'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { abrirRequisicao, fecharRequisicao } from '@/lib/db'
-import { medir } from '@/lib/medir'
 import { BotaoSair } from '@/components/BotaoSair'
 import { BarraInferior, BarraLateral } from '@/components/Navegacao'
 
@@ -33,7 +32,7 @@ export default async function LayoutApp({ children }: LayoutProps<'/'>) {
   abrirRequisicao()
   after(() => fecharRequisicao())
 
-  const u = await medir('layout:sessao', () => exigirUsuario())
+  const u = await exigirUsuario()
   const primeiroNome = u.nome.split(' ')[0]
   const ehGestor = u.papel === 'gestor'
 

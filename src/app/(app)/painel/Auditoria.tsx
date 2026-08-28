@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { linkDaGestao, type FiltrosGestao } from '@/lib/rotas'
+import type { FiltrosGestao } from '@/lib/rotas'
 import { formatarDia } from '@/lib/visita/datas'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 import type { LinhaRelatorio } from '@/lib/visita/relatorios'
@@ -29,16 +29,12 @@ const STATUS: Record<string, { rotulo: string; cor: string; faixa: string }> = {
  */
 export function Auditoria({
   visitas,
-  vendedores,
   filtros,
 }: {
   visitas: LinhaRelatorio[]
-  vendedores: { id: string; nome: string }[]
   filtros: FiltrosGestao
 }) {
   const { vendedor, status } = filtros
-  const link = (troca: { vendedor?: string; status?: string }) =>
-    linkDaGestao({ ...filtros, ...troca })
 
   return (
     <details className="lg:[&>section]:!block">
@@ -47,44 +43,14 @@ export function Auditoria({
       </summary>
 
       <section className="mt-2 flex flex-col gap-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-          <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-            Visitas ({visitas.length})
-          </h2>
+        <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+          Visitas ({visitas.length})
           {(vendedor || status) && (
-            <Link
-              href={link({ vendedor: '', status: '' })}
-              prefetch={false}
-              className="text-sm font-semibold text-fazer underline-offset-4 hover:underline"
-            >
-              limpar filtros
-            </Link>
+            <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+              · com os filtros acima
+            </span>
           )}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          <Filtro href={link({ vendedor: '' })} ativo={!vendedor} rotulo="Todos" />
-          {vendedores.map((v) => (
-            <Filtro
-              key={v.id}
-              href={link({ vendedor: v.id })}
-              ativo={vendedor === v.id}
-              rotulo={v.nome.split(' ')[0]}
-            />
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          <Filtro href={link({ status: '' })} ativo={!status} rotulo="Todos os status" />
-          {Object.entries(STATUS).map(([chave, s]) => (
-            <Filtro
-              key={chave}
-              href={link({ status: chave })}
-              ativo={status === chave}
-              rotulo={s.rotulo}
-            />
-          ))}
-        </div>
+        </h2>
 
         {/* Baixar é uma navegação comum: o navegador cuida do resto, sem
             JavaScript e sem prender o gestor ao que eu imaginei que ele
@@ -151,19 +117,5 @@ export function Auditoria({
         </div>
       </section>
     </details>
-  )
-}
-
-function Filtro({ href, ativo, rotulo }: { href: string; ativo: boolean; rotulo: string }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
-        ativo ? 'bg-asfalto text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
-      }`}
-    >
-      {rotulo}
-    </Link>
   )
 }

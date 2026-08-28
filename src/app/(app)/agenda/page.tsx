@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { listarDoPeriodo, contarPorDia, db } from '@/lib/visita/repositorio'
 import { hoje, diasEntre } from '@/lib/visita/datas'
-import { comTeto } from '@/lib/medir'
+import { comTeto } from '@/lib/teto'
 import {
   VISTAS,
   vistaValida,
