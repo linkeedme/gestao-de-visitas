@@ -10,8 +10,6 @@ import {
   kpisPorVendedor,
   listarParaAuditoria,
   vendedoresComVisita,
-  serieDiaria,
-  porTipo,
   clientesEmRisco,
   reagendamentosEmSerie,
   realizadasSemRelato,
@@ -22,10 +20,10 @@ import { comTeto } from '@/lib/teto'
 import type { FiltrosGestao } from '@/lib/rotas'
 import { hoje, somarDias } from '@/lib/visita/datas'
 import { intervaloDoFiltro } from '@/lib/visita/periodo'
-import { rotuloDoTipo } from '@/lib/visita/tipos'
-import { BarrasPorDia, BarrasPorPessoa, PorTipo, Legenda, CORES } from './Graficos'
 import { Alertas } from './Alertas'
 import { Filtros } from './Filtros'
+import { PorPessoa } from './PorPessoa'
+import { CORES } from './Cores'
 import { Auditoria } from './Auditoria'
 
 export const dynamic = 'force-dynamic'
@@ -65,13 +63,11 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
-  const [kpis, foraDoCrm, adiante, serie, tipos, emRisco, empurrados, semRelato, vencidas, vendedores] =
+  const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas, vendedores] =
     await comTeto('painel:9consultas', 8, () => Promise.all([
       kpisPorVendedor(db, de, ate),
       listarNaoSincronizadas(db),
       contarAgendadasAdiante(db, ate),
-      serieDiaria(db, de, ate),
-      porTipo(db, de, ate),
       // Estes dois recebem `hojeISO`, não `ate`: atraso é uma pergunta sobre o
       // presente. Com intervalo livre, passar `ate` faria a tela de julho
       // responder o que estava atrasado em julho — e o gestor leria como
@@ -85,21 +81,6 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
 
-  const total = kpis.reduce(
-    (acc, l) => ({
-      aFazer: acc.aFazer + l.aFazer,
-      realizadas: acc.realizadas + l.realizadas,
-      canceladas: acc.canceladas + l.canceladas,
-      reagendadas: acc.reagendadas + l.reagendadas,
-    }),
-    { aFazer: 0, realizadas: 0, canceladas: 0, reagendadas: 0 }
-  )
-
-  const fechadas = total.realizadas + total.canceladas
-  const conclusao = fechadas === 0 ? 0 : Math.round((total.realizadas / fechadas) * 100)
-  const emCampo = serie.filter((d) => d.realizadas > 0).length
-  const mediaDia = emCampo === 0 ? 0 : total.realizadas / emCampo
-
   return (
     <div className="flex flex-col gap-5">
       <h1 className="font-display text-2xl font-semibold">Gestão</h1>
@@ -111,32 +92,9 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
         vendedores={vendedores}
       />
 
-      {/* ❶ O número que responde à pergunta do gestor antes de qualquer
-          gráfico: quanto de trabalho foi feito. O resto contextualiza. */}
-      <section className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-2xl bg-asfalto p-5 text-white shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">
-            Visitas realizadas
-          </p>
-          <p className="font-display text-6xl font-semibold leading-none">{total.realizadas}</p>
-          <p className="mt-2 text-sm text-white/70">
-            {mediaDia.toFixed(1)} por dia em campo · {emCampo}{' '}
-            {emCampo === 1 ? 'dia com visita' : 'dias com visita'}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 lg:col-span-2">
-          <Cartao valor={total.aFazer} rotulo="A fazer" cor={CORES.aFazer} />
-          <Cartao valor={total.reagendadas} rotulo="Reagendadas" cor={CORES.reagendadas} />
-          <Cartao valor={total.canceladas} rotulo="Canceladas" cor={CORES.canceladas} />
-          <Cartao
-            valor={`${conclusao}%`}
-            rotulo="Conclusão"
-            cor={CORES.realizadas}
-            ajuda={`${total.realizadas} de ${fechadas} fechadas`}
-          />
-        </div>
-      </section>
+      {/* O que pede ação vem antes de tudo: gráfico é contexto, alerta é
+          trabalho. */}
+      <Alertas alertas={alertas} />
 
       {adiante > 0 && (
         <Link
@@ -148,36 +106,18 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
             {adiante}
           </span>
           <span className="text-sm text-slate-700">
-            {adiante === 1 ? 'visita agendada' : 'visitas agendadas'} depois de hoje
-            <span className="block text-slate-500">Fora do período acima. Toque para ver.</span>
+            {adiante === 1 ? 'visita agendada' : 'visitas agendadas'} depois deste período
+            <span className="block text-slate-500">Toque para ver na agenda.</span>
           </span>
         </Link>
       )}
 
-      {/* ❷ O acionável, antes do ilustrativo. */}
-      <Alertas alertas={alertas} />
-
-      {/* ❸ Contexto. */}
-      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Movimento por dia</h2>
-          <Legenda />
-        </div>
-        <BarrasPorDia serie={serie} />
+      <section className="flex flex-col gap-2">
+        <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+          O time no período
+        </h2>
+        <PorPessoa linhas={kpis} filtros={filtros} />
       </section>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* ❹ Por pessoa, agora numa versão só. */}
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-          <h2 className="mb-4 font-display text-lg font-semibold">Por pessoa</h2>
-          <BarrasPorPessoa linhas={kpis} />
-        </section>
-
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-          <h2 className="mb-4 font-display text-lg font-semibold">Tipo de visita</h2>
-          <PorTipo fatias={tipos.map((t) => ({ rotulo: rotuloDoTipo(t.tipo), n: t.n }))} />
-        </section>
-      </div>
 
       {/* ❺ A auditoria tem as duas consultas mais pesadas e é a menos urgente:
           num boundary próprio, ela não segura o resto da página. */}
