@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRAZOS } from '@/lib/prazos'
+import { PRAZOS, DRENAGEM_MS } from '@/lib/prazos'
 
 /**
  * A ordem dos prazos é a regra, não os valores.
@@ -28,5 +28,19 @@ describe('ordem dos prazos', () => {
 
   it('não deixa transação órfã sobreviver ao teto da página', () => {
     expect(PRAZOS.transacaoOciosaMs).toBeLessThan(PRAZOS.telaMs)
+  })
+
+  /**
+   * Quem descarta o pool nem sempre é quem o está usando: o trabalho que
+   * continua depois da resposta escreve no banco quando o CRM termina, e essa
+   * escrita passa pelo mesmo `conectar()` — que pode achar a janela de
+   * ociosidade vencida e descartar o pool de uma requisição recém-chegada.
+   *
+   * A drenagem acima do prazo de consulta é o que garante que a vítima termine
+   * antes de o pool ser destruído. Se um dia alguém encurtar a drenagem ou
+   * esticar a consulta, isto aqui acusa.
+   */
+  it('deixa a consulta terminar antes de o pool velho ser destruído', () => {
+    expect(DRENAGEM_MS).toBeGreaterThan(PRAZOS.consultaMs)
   })
 })

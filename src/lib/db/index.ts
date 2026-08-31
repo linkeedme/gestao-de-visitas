@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { numeroDoAmbiente } from '@/lib/ambiente'
-import { PRAZOS } from '@/lib/prazos'
+import { PRAZOS, DRENAGEM_MS } from '@/lib/prazos'
 import * as schema from './schema'
 
 type Conexao = ReturnType<typeof drizzle<typeof schema>>
@@ -42,12 +42,20 @@ const OCIOSIDADE_MAXIMA_MS = numeroDoAmbiente('DB_OCIOSIDADE_MAX_MS', 10_000)
  * Prazo para o pool velho terminar o que estava fazendo antes de ser
  * destruído.
  *
- * Alinhado ao `statement_timeout`: consulta que o servidor ainda honraria
- * chega ao fim; a que já estava presa morre junto com o pool, que é o
- * desfecho desejado. `timeout: 0` destruiria o socket na hora e mataria
- * consulta em voo — foi o que produziu CONNECTION_DESTROYED em produção.
+ * Precisa ser MAIOR que o prazo de consulta, e é por isso que se deriva dele
+ * em vez de ser escrito à mão. Quem descarta o pool nem sempre é quem o está
+ * usando: o trabalho que continua depois da resposta escreve no banco quando o
+ * CRM termina, às vezes dezenas de segundos depois, e essa escrita passa pelo
+ * mesmo `conectar()`. Se a janela de ociosidade tiver vencido, ela descarta o
+ * pool — inclusive o de uma requisição que acabou de chegar.
+ *
+ * Com a drenagem acima do prazo de consulta, a vítima desse descarte sempre
+ * termina antes de o pool ser destruído: o servidor já terá encerrado qualquer
+ * consulta aos oito segundos. `timeout: 0` destruiria o socket na hora e
+ * mataria consulta em voo — foi o que produziu CONNECTION_DESTROYED em
+ * produção.
  */
-const DRENAGEM_S = 15
+const DRENAGEM_S = DRENAGEM_MS / 1000
 
 /** Joga fora o pool e obriga a próxima consulta a abrir conexão nova. */
 export function descartarConexao(): void {

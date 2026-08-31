@@ -1,20 +1,24 @@
 /**
- * O ponto de parada do prefetch — e, de quebra, o que se vê enquanto carrega.
+ * O que se vê enquanto a tela carrega.
  *
- * O `<Link>` do Next busca sozinho toda rota visível na tela. Para rota
- * dinâmica ele para no `loading` mais próximo; sem nenhum, não há onde parar,
- * e cada link visível renderizava a página inteira no servidor. Em produção
- * isso virou dezenas de consultas para abrir uma tela só — os prefetches do
- * painel e dos relatórios, sete consultas cada, disparados sem ninguém ter
- * clicado neles. Prefetch só acontece em produção, então nada disso aparecia
- * em desenvolvimento.
+ * Este arquivo já foi descrito aqui como "o ponto de parada do prefetch", que
+ * teria evitado dezenas de consultas por tela. Está errado, e fica registrado
+ * em vez de apagado porque a conclusão errada custou tempo: durante três dias
+ * o prefetch foi tratado como suspeito do travamento, e não era.
  *
- * Um arquivo aqui cobre todas as telas do app: o prefetch passa a buscar este
- * esqueleto em vez do conteúdo.
+ * O que o Next 16 realmente faz (lido em
+ * `server/app-render/walk-tree-with-flight-router-state.js`): numa requisição
+ * de prefetch, ao chegar no primeiro segmento que não bate com a árvore do
+ * cliente, ele devolve só o estado do roteador e não monta a árvore de
+ * componentes. Layout e página não renderizam. **Prefetch não custa consulta
+ * nenhuma** — nem antes deste arquivo existir.
  *
- * A navegação e o cabeçalho ficam de fora porque moram no layout, que continua
- * na tela — só o miolo troca. É o que faz a navegação parecer instantânea
- * mesmo sem prefetch.
+ * O que os `prefetch={false}` espalhados pelo app economizam é requisição
+ * HTTP, não banco.
+ *
+ * Este esqueleto continua valendo pelo motivo simples: é o que aparece no
+ * toque, enquanto a tela de verdade vem. A navegação e o cabeçalho ficam de
+ * fora porque moram no layout, que continua na tela — só o miolo troca.
  */
 export default function Carregando() {
   return (

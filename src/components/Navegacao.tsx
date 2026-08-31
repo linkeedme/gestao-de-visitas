@@ -15,13 +15,19 @@ import { usePathname } from 'next/navigation'
  * detecção de largura no cliente causa no primeiro render.
  *
  * As duas ficam montadas ao mesmo tempo — o CSS esconde uma, mas o navegador
- * tem as duas. Por isso os links não fazem prefetch: cada um deles seria
- * buscado duas vezes, sem ninguém ter clicado, e são justamente os links das
- * telas mais caras (painel e relatórios fazem sete consultas cada). Medido em
- * produção: vinte e cinco requisições para abrir uma tela. O prefetch no hover
- * continua valendo, e aí o usuário já disse para onde quer ir; no celular não
- * há hover, e o custo vai a zero. O que segura a sensação de rapidez é o
- * loading.tsx, que aparece na hora do toque.
+ * tem as duas. Por isso os links não fazem prefetch: cada um seria buscado
+ * duas vezes, sem ninguém ter clicado.
+ *
+ * O que isso economiza é requisição HTTP, e só. A versão anterior deste
+ * comentário dizia que cada prefetch renderizava a página no servidor — "sete
+ * consultas cada", "vinte e cinco requisições para abrir uma tela" — e isso é
+ * falso: numa requisição de prefetch o Next devolve só o estado do roteador e
+ * não monta a árvore de componentes, então layout e página não renderizam.
+ * Prefetch nunca custou consulta ao banco.
+ *
+ * Fica escrito porque a versão errada mandou três dias de investigação atrás
+ * do culpado errado. O que segura a sensação de rapidez é o loading.tsx, que
+ * aparece na hora do toque.
  */
 
 type Item = { href: string; rotulo: string; icone: React.ReactNode }

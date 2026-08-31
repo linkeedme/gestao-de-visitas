@@ -59,3 +59,14 @@ export const PRAZOS = {
 
 /** O teto da tela em segundos, que é como `comTeto` fala. */
 export const TETO_DA_TELA_S = PRAZOS.telaMs / 1000
+
+/**
+ * Prazo para o pool velho terminar o que estava fazendo antes de ser
+ * destruído. Fica fora de `PRAZOS` porque é o único que precisa ser MAIOR que
+ * os outros, não menor — é uma drenagem, não um teto.
+ *
+ * Derivado do prazo de consulta em vez de escrito à mão, porque a relação
+ * entre os dois é a regra: quem descarta o pool nem sempre é quem o está
+ * usando, e a vítima do descarte precisa ter terminado antes.
+ */
+export const DRENAGEM_MS = PRAZOS.consultaMs * 2
