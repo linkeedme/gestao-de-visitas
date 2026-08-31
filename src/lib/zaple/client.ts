@@ -1,25 +1,18 @@
-import { numeroDoAmbiente } from '@/lib/ambiente'
+import { PRAZOS } from '@/lib/prazos'
 import { ZapleError, vaTentarDeNovo } from './erros'
 
 const TENTATIVAS = 3
 const ESPERA_BASE_MS = 300
 
 /**
- * Teto de cada tentativa. O `fetch` do Node não tem prazo nenhum por padrão:
- * uma chamada que fica sem resposta prende a requisição até o limite da
- * Vercel, e como isto roda antes de a página ou o POST responderem, quem
- * ficava parado era a pessoa segurando o celular.
+ * Os prazos moram em `prazos.ts` com todos os outros: o que importa neles é a
+ * ordem, e o orçamento daqui precisa vencer antes do teto da tela. Estava ao
+ * contrário — orçamento de 12s sob um teto de 8s —, e o efeito era que a
+ * segunda tentativa só começava depois de a tela já ter quebrado: trabalho
+ * fantasma, que nunca chegava a ajudar ninguém.
  */
-const POR_TENTATIVA_MS = numeroDoAmbiente('ZAPLE_TIMEOUT_MS', 8_000)
-
-/**
- * Teto do conjunto, retentativas e esperas incluídas.
- *
- * Sem ele o teto por tentativa se multiplicava: três tentativas de oito
- * segundos mais o backoff passavam de vinte e cinco, o que é o mesmo travamento
- * mais devagar. Passado o orçamento, a chamada desiste com o último erro.
- */
-const ORCAMENTO_MS = numeroDoAmbiente('ZAPLE_ORCAMENTO_MS', 12_000)
+const POR_TENTATIVA_MS = PRAZOS.crmTentativaMs
+const ORCAMENTO_MS = PRAZOS.crmOrcamentoMs
 
 type Params = Record<string, string | string[] | number | undefined>
 

@@ -1,6 +1,7 @@
 import { exigirGestor } from '@/lib/auth/atual'
 import { listarUsuarios } from '@/lib/auth/usuarios'
 import { comTeto } from '@/lib/teto'
+import { TETO_DA_TELA_S } from '@/lib/prazos'
 import { listarAgentes } from '@/lib/zaple/agentes'
 import { listarNaoSincronizadas, db } from '@/lib/visita/repositorio'
 import { FormUsuario } from './FormUsuario'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function Admin() {
   const eu = await exigirGestor()
-  const [usuarios, agentes, pendentes] = await comTeto('admin:consultas', 8, () => Promise.all([
+  const [usuarios, agentes, pendentes] = await comTeto('admin:consultas', TETO_DA_TELA_S, () => Promise.all([
     listarUsuarios(),
     listarAgentes(),
     listarNaoSincronizadas(db),

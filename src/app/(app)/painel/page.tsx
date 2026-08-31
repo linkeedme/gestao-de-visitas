@@ -17,6 +17,7 @@ import {
 } from '@/lib/visita/relatorios'
 import { montarAlertas } from '@/lib/visita/alertas'
 import { comTeto } from '@/lib/teto'
+import { TETO_DA_TELA_S } from '@/lib/prazos'
 import type { FiltrosGestao } from '@/lib/rotas'
 import { hoje, somarDias } from '@/lib/visita/datas'
 import { intervaloDoFiltro } from '@/lib/visita/periodo'
@@ -64,7 +65,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
   const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas, vendedores] =
-    await comTeto('painel:consultas', 8, () => Promise.all([
+    await comTeto('painel:consultas', TETO_DA_TELA_S, () => Promise.all([
       kpisPorVendedor(db, de, ate),
       listarNaoSincronizadas(db),
       contarAgendadasAdiante(db, ate),

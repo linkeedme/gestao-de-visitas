@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { numeroDoAmbiente } from '@/lib/ambiente'
+import { PRAZOS } from '@/lib/prazos'
 import * as schema from './schema'
 
 type Conexao = ReturnType<typeof drizzle<typeof schema>>
@@ -72,8 +73,22 @@ function conectar(): Conexao {
     // e o statement preparado na anterior não existe lá. Sem isso, o app
     // funciona no primeiro acesso e falha de forma intermitente depois.
     prepare: false,
-    // Serverless: cada instância é efêmera, então um punhado de conexões por
-    // instância basta e evita estourar o limite do projeto.
+    // Doze, e não três, porque três era o que produzia o travamento.
+    //
+    // A tela de gestão pede oito consultas de uma vez. Com três conexões elas
+    // viravam três ondas, e — pior — o que sobrava ia para uma fila FIFO única
+    // do cliente inteiro, sem prazo e sem prioridade. Quem clicasse noutra
+    // tela entrava atrás da bagagem inteira da anterior, e como nada cancela
+    // consulta de tela abandonada, o segundo clique herdava a fila do
+    // primeiro. Era exatamente o "trava quando clico rápido".
+    //
+    // O `prepare: false` acima piora a conta: ele desliga o pipelining do
+    // driver, então o pool não sobrepõe consultas — é um portão de `max` por
+    // vez, sem folga.
+    //
+    // Doze conexões por instância não pressionam o pooler de transação, que
+    // existe justamente para multiplexar muitos clientes sobre poucas conexões
+    // reais do Postgres, e cabem com sobra no limite do projeto.
     //
     // Cai para 1 com DB_POOL_MAX=1, que é o que o Postgres embarcado do
     // desenvolvimento local exige: o PGlite serve tudo por uma conexão só, e
@@ -81,29 +96,20 @@ function conectar(): Conexao {
     // consultas em paralelo, com pool maior que 1 ele responde
     // "unnamed prepared statement does not exist" e a tela quebra — só
     // localmente, nunca contra um Postgres de verdade.
-    max: numeroDoAmbiente('DB_POOL_MAX', 3),
+    max: numeroDoAmbiente('DB_POOL_MAX', 12),
     idle_timeout: 20,
-    // O teto que faltava, e o mais caro de não ter: os timeouts abaixo viajam
-    // no handshake, então uma conexão que nunca se estabelece nunca os recebe.
-    // Sem isto o `await` fica pendurado até o teto da Vercel — 300 segundos.
-    // Observado em produção: um soluço do banco às 10:53 travou quatro
-    // requisições do painel e uma de relatórios por cinco minutos cada,
-    // segurando conexões e realimentando a fila. Uma conexão saudável leva
-    // 250ms; a que não vier em 10s não vem mais, e falhar rápido devolve à
-    // pessoa uma tela com recado em vez de cinco minutos de espera.
-    connect_timeout: 10,
+    // Os prazos viajam no handshake, então uma conexão que nunca se
+    // estabelece nunca os recebe. Sem o de conectar, o `await` fica pendurado
+    // até o teto da Vercel — 300 segundos. Observado em produção: um soluço do
+    // banco às 10:53 travou quatro requisições do painel e uma de relatórios
+    // por cinco minutos cada, segurando conexões e realimentando a fila.
+    //
+    // Os valores moram em `prazos.ts` porque a ordem entre eles é que importa,
+    // e ela só se enxerga com todos lado a lado.
+    connect_timeout: PRAZOS.conectarMs / 1000,
     connection: {
-      // Uma consulta que passa de 15s aqui não está lenta, está presa: as
-      // telas leem tabelas pequenas e por índice. Sem teto, ela ocupa uma das
-      // três conexões até alguém perceber.
-      statement_timeout: 15_000,
-      // O teto que importa de verdade. `reagendar` e `realizarComRetorno`
-      // abrem transação, e uma requisição que morre no meio — o serverless
-      // desligando a instância, o navegador desistindo — deixaria a transação
-      // aberta segurando a conexão. Observado em desenvolvimento: uma
-      // transação órfã travou o app inteiro por nove minutos, com o Postgres
-      // parado em Client/ClientRead esperando um cliente que não voltaria.
-      idle_in_transaction_session_timeout: 10_000,
+      statement_timeout: PRAZOS.consultaMs,
+      idle_in_transaction_session_timeout: PRAZOS.transacaoOciosaMs,
     },
   })
 
