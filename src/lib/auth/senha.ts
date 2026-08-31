@@ -5,8 +5,21 @@ import type { ProvedorLogin } from './tipos'
 
 const CUSTO = 12
 
-/** Hash de referência para comparar quando o usuário não existe. */
-const HASH_FANTASMA = bcrypt.hashSync('nenhuma-senha-corresponde-a-isto', CUSTO)
+/**
+ * Hash de referência para comparar quando o usuário não existe.
+ *
+ * É constante escrita à mão, e não `hashSync` na carga do módulo, porque o
+ * resultado nunca muda e o cálculo custava 221ms medidos — de meio a um
+ * segundo e meio numa vCPU compartilhada da Vercel. Sendo síncrono, durante
+ * esse tempo nada mais roda na instância: nem outra requisição, nem a leitura
+ * dos sockets do Postgres. E rodava no primeiro acesso de qualquer rota que
+ * importasse este arquivo, que são o login e as duas de usuários.
+ *
+ * Publicar este valor não custa nada: ele é o hash de uma frase conhecida que
+ * não é senha de ninguém, e existe só para dar ao bcrypt algo válido para
+ * comparar. O que ele protege é o relógio, não o segredo.
+ */
+export const HASH_FANTASMA = '$2b$12$3yqXOREVxvOYtckBkd3gu.yXLDJI2fZwlz6Efkw5Zcq7B2/WXK1Gq'
 
 export function gerarHash(senha: string): Promise<string> {
   return bcrypt.hash(senha, CUSTO)

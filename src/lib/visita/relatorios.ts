@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { usuario, visita, type Visita } from '@/lib/db'
 import type { BancoVisita } from './repositorio'
 import { somarDias } from './datas'
@@ -221,20 +221,21 @@ export async function atrasadas(db: BancoVisita, hojeISO: string): Promise<Linha
   return linhas.map((l) => ({ ...l.visita, vendedor: l.vendedor }))
 }
 
-/** Só para o filtro de vendedor da tela: quem tem visita no período. */
-export async function vendedoresComVisita(
-  db: BancoVisita,
-  de: string,
-  ate: string
-): Promise<{ id: string; nome: string }[]> {
-  const linhas = await db
-    .selectDistinct({ id: usuario.id, nome: usuario.nome })
-    .from(visita)
-    .innerJoin(usuario, eq(usuario.id, visita.usuarioId))
-    .where(and(gte(visita.data, de), lte(visita.data, ate), isNotNull(usuario.id)))
-    .orderBy(asc(usuario.nome))
-
-  return linhas
+/**
+ * Quem tem visita no período, para o filtro de vendedor da tela.
+ *
+ * Sai dos KPIs em vez de consulta própria. Era um `selectDistinct` sobre o
+ * mesmo join, o mesmo intervalo e a mesma tabela que `kpisPorVendedor` já
+ * percorre — uma ida ao banco inteira para devolver um subconjunto do que a
+ * consulta anterior já tinha em mãos.
+ *
+ * A ordem é alfabética, e não a da tabela: quem procura uma pessoa numa lista
+ * procura pelo nome, não por quantas visitas ela fez.
+ */
+export function vendedoresDoFiltro(kpis: KpiVendedor[]): { id: string; nome: string }[] {
+  return kpis
+    .map((k) => ({ id: k.usuarioId, nome: k.vendedor }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 export type DiaSerie = {

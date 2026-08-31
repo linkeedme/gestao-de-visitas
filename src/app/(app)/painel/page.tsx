@@ -9,7 +9,7 @@ import {
 import {
   kpisPorVendedor,
   listarParaAuditoria,
-  vendedoresComVisita,
+  vendedoresDoFiltro,
   clientesEmRisco,
   reagendamentosEmSerie,
   realizadasSemRelato,
@@ -64,7 +64,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
-  const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas, vendedores] =
+  const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas] =
     await comTeto('painel:consultas', TETO_DA_TELA_S, () => Promise.all([
       kpisPorVendedor(db, de, ate),
       listarNaoSincronizadas(db),
@@ -77,10 +77,10 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
       reagendamentosEmSerie(db, de, ate),
       realizadasSemRelato(db, de, ate),
       atrasadas(db, hojeISO),
-      vendedoresComVisita(db, de, ate),
     ]))
 
   const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
+  const vendedores = vendedoresDoFiltro(kpis)
 
   return (
     <div className="flex flex-col gap-4">
