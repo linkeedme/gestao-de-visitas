@@ -44,36 +44,42 @@ export function Auditoria({
   return (
     <div>
       <section className="mt-2 flex flex-col gap-2">
-        <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-          Visitas ({visitas.length})
-          {(vendedor || status) && (
-            <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
-              · com os filtros acima
-            </span>
-          )}
-        </h2>
+        {/* O título e a planilha dividem a linha. Antes o botão de baixar
+            ocupava a largura inteira em preto sólido, e virava o elemento mais
+            forte do bloco — gritando mais alto que as próprias visitas, que
+            são o conteúdo. Exportar é saída, não destino. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            Visitas ({visitas.length})
+            {(vendedor || status) && (
+              <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                · com os filtros acima
+              </span>
+            )}
+          </h2>
 
-        {/* Baixar é uma navegação comum: o navegador cuida do resto, sem
-            JavaScript e sem prender o gestor ao que eu imaginei que ele
-            precisaria ver. Na planilha ele filtra e soma como quiser. */}
-        <a
-          href={`/api/relatorios/csv?de=${filtros.de}&ate=${filtros.ate}${vendedor ? `&usuarioId=${vendedor}` : ''}${status ? `&status=${status}` : ''}`}
-          className="flex items-center justify-center gap-2 rounded-xl bg-asfalto px-4 py-3 font-semibold text-white"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-            aria-hidden="true"
+          {/* Baixar é uma navegação comum: o navegador cuida do resto, sem
+              JavaScript e sem prender o gestor ao que eu imaginei que ele
+              precisaria ver. Na planilha ele filtra e soma como quiser. */}
+          <a
+            href={`/api/relatorios/csv?de=${filtros.de}&ate=${filtros.ate}${vendedor ? `&usuarioId=${vendedor}` : ''}${status ? `&status=${status}` : ''}`}
+            className="flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-slate-600 ring-1 ring-slate-300 transition-colors hover:bg-white hover:text-asfalto"
           >
-            <path d="M12 3v12M7 12l5 5 5-5M5 21h14" />
-          </svg>
-          Baixar planilha do período
-        </a>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path d="M12 3v12M7 12l5 5 5-5M5 21h14" />
+            </svg>
+            Planilha
+          </a>
+        </div>
 
         {visitas.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-300 px-5 py-6 text-center text-sm text-slate-500">
