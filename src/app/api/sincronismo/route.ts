@@ -1,3 +1,4 @@
+import { numeroDoAmbiente } from '@/lib/ambiente'
 import { exigirGestor } from '@/lib/auth/atual'
 import { listarNaoSincronizadas, db } from '@/lib/visita/repositorio'
 import { sincronizar } from '@/lib/visita/sincronizador'
@@ -20,21 +21,50 @@ export async function GET() {
 const LOTE = 4
 
 /**
- * Reprocessa a fila inteira. Sem agendador e sem backoff de propósito: com o
- * volume de hoje, um botão no admin resolve, e um processo de fundo seria
- * infraestrutura para um problema que ainda não existe.
+ * Quanto tempo o botão pode gastar antes de devolver o que conseguiu.
+ *
+ * Sem isto o laço não tinha fim previsível: cada visita faz até quatro
+ * chamadas ao CRM em série, dez segundos de pior caso cada, o que dá quarenta
+ * segundos por lote. Vinte e oito pendências bastavam para passar dos
+ * trezentos segundos da Vercel — e aí a função morre sem devolver nada, o
+ * gestor não recebe nem a contagem parcial, e a instância fica ocupada o
+ * tempo inteiro, atendendo pior todo mundo que estiver usando o app.
+ *
+ * Sessenta segundos deixam folga larga sobre o teto da plataforma. O que não
+ * couber fica para o próximo aperto do botão, que continua de onde parou —
+ * a fila é lida do banco a cada chamada.
+ */
+const ORCAMENTO_MS = numeroDoAmbiente('SINCRONISMO_ORCAMENTO_MS', 60_000)
+
+/**
+ * Reprocessa a fila até onde o orçamento alcançar. Sem agendador e sem backoff
+ * de propósito: com o volume de hoje, um botão no admin resolve, e um processo
+ * de fundo seria infraestrutura para um problema que ainda não existe.
  */
 export async function POST() {
   await exigirGestor()
   const pendentes = await listarNaoSincronizadas(db)
+  const fim = Date.now() + ORCAMENTO_MS
 
   let sincronizadas = 0
+  let tentadas = 0
   for (let i = 0; i < pendentes.length; i += LOTE) {
-    const resultados = await Promise.all(
-      pendentes.slice(i, i + LOTE).map((v) => sincronizar(db, v))
-    )
+    // A checagem é antes do lote, e não depois: começar um lote sabendo que o
+    // orçamento não o cobre é a forma de estourá-lo.
+    if (Date.now() >= fim) break
+
+    const lote = pendentes.slice(i, i + LOTE)
+    const resultados = await Promise.all(lote.map((v) => sincronizar(db, v)))
+    tentadas += lote.length
     sincronizadas += resultados.filter((r) => r?.ok).length
   }
 
-  return Response.json({ tentadas: pendentes.length, sincronizadas })
+  return Response.json({
+    tentadas: pendentes.length,
+    sincronizadas,
+    // O que sobrou inclui as que nem chegaram a ser tentadas e as que
+    // falharam: para quem olha a tela, as duas continuam fora do CRM.
+    restantes: pendentes.length - sincronizadas,
+    ...(tentadas < pendentes.length ? { pausadoPorTempo: true } : {}),
+  })
 }

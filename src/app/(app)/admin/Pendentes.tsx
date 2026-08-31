@@ -18,8 +18,14 @@ export function Pendentes({ quantidade }: { quantidade: number }) {
         setErro(await erroDaResposta(r, 'Não foi possível reprocessar'))
         return
       }
-      const { tentadas, sincronizadas } = await r.json()
-      setResultado(`${sincronizadas} de ${tentadas} foram para o Zaple.`)
+      const { tentadas, sincronizadas, pausadoPorTempo } = await r.json()
+      // Sem esta segunda frase, uma fila grande parece ter falhado pela
+      // metade: o número volta menor que o total e não há nada explicando que
+      // o resto continua na fila, esperando outro toque.
+      setResultado(
+        `${sincronizadas} de ${tentadas} foram para o Zaple.` +
+          (pausadoPorTempo ? ' A fila é longa e o resto ficou para o próximo toque.' : '')
+      )
       router.refresh()
     } catch {
       setErro('Sem conexão. Nada foi reprocessado.')
