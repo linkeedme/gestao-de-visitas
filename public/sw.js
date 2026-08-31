@@ -1,4 +1,7 @@
-const CACHE = 'casco-v1'
+// A versão sobe junto com qualquer coisa que esteja no CASCO. O ícone mudou de
+// desenho, e sem trocar a chave quem já instalou o app continuaria vendo o
+// antigo: o activate abaixo só descarta cache de chave diferente desta.
+const CACHE = 'casco-v2'
 const CASCO = ['/', '/manifest.webmanifest', '/icone-192.png', '/icone-512.png']
 
 self.addEventListener('install', (e) => {
