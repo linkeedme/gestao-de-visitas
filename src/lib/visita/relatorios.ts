@@ -95,6 +95,52 @@ export async function kpisPorVendedor(
   return linhas.sort((a, b) => b.realizadas - a.realizadas)
 }
 
+export type TotaisDoPeriodo = {
+  visitas: number
+  realizadas: number
+  aFazer: number
+  reagendadas: number
+  canceladas: number
+  /** Clientes distintos com pelo menos uma visita realizada. */
+  clientes: number
+  /** Dias distintos em que houve visita realizada. */
+  diasEmCampo: number
+}
+
+/**
+ * O pulso da operação no período, numa consulta só.
+ *
+ * Não sai da soma dos KPIs por pessoa porque duas das contas não são somáveis:
+ * dois vendedores que visitam o mesmo cliente somariam dois, e a carteira
+ * pareceria maior do que é; o mesmo vale para dias em campo, em que dois
+ * vendedores na rua no mesmo dia contariam dois dias. Distinto de partes não
+ * é distinto do todo.
+ */
+export async function totaisDoPeriodo(
+  db: BancoVisita,
+  de: string,
+  ate: string
+): Promise<TotaisDoPeriodo> {
+  const [linha] = await db
+    .select({
+      visitas: count(),
+      realizadas: count(sql`case when ${visita.status} = 'realizada' then 1 end`),
+      aFazer: count(sql`case when ${visita.status} = 'a_fazer' then 1 end`),
+      reagendadas: count(sql`case when ${visita.status} = 'reagendada' then 1 end`),
+      canceladas: count(sql`case when ${visita.status} = 'cancelada' then 1 end`),
+      clientes: countDistinct(
+        sql`case when ${visita.status} = 'realizada' then ${visita.contatoId} end`
+      ),
+      diasEmCampo: countDistinct(
+        sql`case when ${visita.status} = 'realizada' then ${visita.data} end`
+      ),
+    })
+    .from(visita)
+    .where(and(gte(visita.data, de), lte(visita.data, ate)))
+
+  return linha
+}
+
 export type ClienteEmRisco = {
   contatoId: string
   contatoNome: string

@@ -12,21 +12,24 @@ const STATUS: Record<string, { rotulo: string; cor: string; faixa: string }> = {
 }
 
 /**
- * A auditoria: recolhida no celular, aberta no notebook.
+ * As visitas do período, sempre visíveis.
  *
- * O gestor faz duas coisas em dois aparelhos — de manhã confere pelo celular,
- * na reunião audita pelo notebook. Este é o único bloco que o celular esconde,
- * e é justamente o que ele não usa por lá.
+ * Este bloco já foi um `<details>` que o CSS abria só no notebook, com o
+ * argumento de que o gestor audita no computador e não no celular. Ficou
+ * invisível NAS DUAS telas, e ninguém percebeu por dias: no notebook o resumo
+ * que abriria estava escondido por `lg:hidden`, e a regra que revelaria a
+ * seção não vencia o `<details>` fechado. O Chrome trata o conteúdo fechado
+ * com `content-visibility`, e `display:block` no filho não ganha disso — o
+ * comentário antigo dizia ter verificado no Chrome, e provavelmente tinha:
+ * uma atualização do navegador desfez a verificação em silêncio.
  *
- * `<details>` nativo em vez de estado no cliente: decidir por largura de tela
- * no navegador produziria o salto no primeiro render que a navegação já evita
- * de propósito.
- *
- * Vai sem `open`. No celular o navegador esconde o conteúdo sozinho e o toque
- * abre; no notebook o CSS força a seção visível mesmo com o elemento fechado,
- * e esconde o resumo. Que um `<details>` fechado aceite ter o filho revelado
- * por `display` não é óbvio — foi verificado no Chrome antes de escrever isto.
+ * A lição que fica no lugar: esconder conteúdo por CSS que depende do
+ * comportamento interno de um elemento nativo é frágil demais para o que se
+ * ganha. A lista agora aparece sempre, cortada no que cabe, com o resto a um
+ * clique.
  */
+const MOSTRAR = 12
+
 export function Auditoria({
   visitas,
   filtros,
@@ -35,13 +38,11 @@ export function Auditoria({
   filtros: FiltrosGestao
 }) {
   const { vendedor, status } = filtros
+  const visiveis = visitas.slice(0, MOSTRAR)
+  const escondidas = visitas.length - visiveis.length
 
   return (
-    <details className="lg:[&>section]:!block">
-      <summary className="cursor-pointer list-none rounded-2xl bg-white px-4 py-3 font-semibold shadow-sm ring-1 ring-slate-200/70 lg:hidden">
-        Ver visitas do período ({visitas.length})
-      </summary>
-
+    <div>
       <section className="mt-2 flex flex-col gap-2">
         <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
           Visitas ({visitas.length})
@@ -81,7 +82,7 @@ export function Auditoria({
         )}
 
         <div className="grid gap-2 lg:grid-cols-2">
-          {visitas.map((v) => {
+          {visiveis.map((v) => {
             const s = STATUS[v.status]
             return (
               <Link
@@ -115,7 +116,16 @@ export function Auditoria({
             )
           })}
         </div>
+
+        {/* O corte é dito, e não silencioso: uma lista que para no décimo
+            segundo sem avisar faz o gestor achar que o período tem menos
+            visita do que tem. A planilha acima leva tudo. */}
+        {escondidas > 0 && (
+          <p className="px-1 text-sm text-slate-500">
+            Mostrando {MOSTRAR} de {visitas.length}. As outras {escondidas} estão na planilha.
+          </p>
+        )}
       </section>
-    </details>
+    </div>
   )
 }

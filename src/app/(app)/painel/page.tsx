@@ -14,17 +14,23 @@ import {
   reagendamentosEmSerie,
   realizadasSemRelato,
   atrasadas,
+  totaisDoPeriodo,
+  serieDiaria,
+  porTipo,
 } from '@/lib/visita/relatorios'
 import { montarAlertas } from '@/lib/visita/alertas'
+import { rotuloDoTipo } from '@/lib/visita/tipos'
 import { comTeto } from '@/lib/teto'
 import { TETO_DA_TELA_S } from '@/lib/prazos'
 import type { FiltrosGestao } from '@/lib/rotas'
-import { hoje, somarDias } from '@/lib/visita/datas'
+import { hoje } from '@/lib/visita/datas'
 import { intervaloDoFiltro } from '@/lib/visita/periodo'
 import { Alertas } from './Alertas'
 import { Filtros } from './Filtros'
 import { PorPessoa } from './PorPessoa'
 import { Auditoria } from './Auditoria'
+import { Totais } from './Totais'
+import { BarrasPorDia, PorTipo as GraficoPorTipo, Legenda } from './Graficos'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,9 +45,15 @@ type StatusFiltro = (typeof STATUS_VALIDOS)[number]
  * precisava abrir as duas para ter um quadro.
  *
  * A ordem responde ao trabalho do gestor: o recorte, o que pede ação, e a
- * equipe pessoa a pessoa. Os totais do time saíram junto com os gráficos —
- * somar a equipe apaga exatamente a pergunta que ele veio fazer, que é como
- * cada um está indo.
+ * equipe pessoa a pessoa.
+ *
+ * A ordem responde na sequência em que as perguntas aparecem: como estamos,
+ * o que pede ação, como o trabalho se distribuiu, quem fez o quê, e quais
+ * visitas foram. Os totais e os dois gráficos já tinham saído daqui, junto
+ * com um gráfico por pessoa — e o argumento valia só para aquele: somar a
+ * equipe apagava a pergunta de quem fez o quê. Somar o tempo e o motivo não
+ * apaga nada, e sem isso a tela abria direto no detalhe, sem dizer antes de
+ * que tamanho era o mês.
  */
 export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
   await exigirGestor()
@@ -64,7 +76,7 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
 
   const filtros: FiltrosGestao = { de, ate, vendedor: usuarioId, status: statusFiltro }
 
-  const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas] =
+  const [kpis, foraDoCrm, adiante, emRisco, empurrados, semRelato, vencidas, totais, serie, tipos] =
     await comTeto('painel:consultas', TETO_DA_TELA_S, () => Promise.all([
       kpisPorVendedor(db, de, ate),
       listarNaoSincronizadas(db),
@@ -77,10 +89,14 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
       reagendamentosEmSerie(db, de, ate),
       realizadasSemRelato(db, de, ate),
       atrasadas(db, hojeISO),
+      totaisDoPeriodo(db, de, ate),
+      serieDiaria(db, de, ate),
+      porTipo(db, de, ate),
     ]))
 
   const alertas = montarAlertas({ vencidas, empurrados, semRelato, emRisco, foraDoCrm })
   const vendedores = vendedoresDoFiltro(kpis)
+  const fatias = tipos.map((t) => ({ rotulo: rotuloDoTipo(t.tipo), n: t.n }))
 
   return (
     <div className="flex flex-col gap-4">
@@ -91,23 +107,30 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
         vendedores={vendedores}
       />
 
-      {/* O que pede ação vem antes de tudo: gráfico é contexto, alerta é
-          trabalho. */}
+      {/* O pulso primeiro: sem ele, saber se o mês foi bom exigia somar a
+          tabela de pessoas de cabeça. */}
+      <Totais totais={totais} adiante={adiante} ate={ate} />
+
+      {/* O que pede ação vem antes do contexto: gráfico explica, alerta cobra. */}
       <Alertas alertas={alertas} />
 
+      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <Bloco titulo="Movimento no período">
+          <BarrasPorDia serie={serie} />
+          <div className="mt-3">
+            <Legenda />
+          </div>
+        </Bloco>
+
+        <Bloco titulo="Por tipo de visita">
+          <GraficoPorTipo fatias={fatias} />
+        </Bloco>
+      </div>
+
       <section>
-        <div className="flex items-baseline justify-between px-1 pb-1.5">
-          <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Equipe</h2>
-          {adiante > 0 && (
-            <Link
-              href={`/agenda?data=${somarDias(ate, 1)}`}
-              prefetch={false}
-              className="text-sm text-slate-500 underline-offset-4 hover:underline"
-            >
-              {adiante} {adiante === 1 ? 'visita marcada' : 'visitas marcadas'} depois deste período
-            </Link>
-          )}
-        </div>
+        <h2 className="px-1 pb-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+          Equipe
+        </h2>
         <PorPessoa linhas={kpis} filtros={filtros} />
       </section>
 
@@ -117,6 +140,17 @@ export default async function Gestao({ searchParams }: PageProps<'/painel'>) {
         <BlocoAuditoria filtros={filtros} />
       </Suspense>
     </div>
+  )
+}
+
+function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
+      <h2 className="pb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+        {titulo}
+      </h2>
+      {children}
+    </section>
   )
 }
 
