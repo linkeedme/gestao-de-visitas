@@ -1,6 +1,7 @@
 import { exigirUsuario } from '@/lib/auth/atual'
 import { BotaoSair } from '@/components/BotaoSair'
 import { BarraInferior, BarraLateral } from '@/components/Navegacao'
+import { InstalarApp } from '@/components/InstalarApp'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,10 @@ export default async function LayoutApp({ children }: LayoutProps<'/'>) {
 
         <BarraInferior ehGestor={ehGestor} />
       </div>
+
+      {/* Fora da coluna do conteúdo porque é uma faixa fixa sobre a tela
+          inteira, e só aparece quando há o que oferecer. */}
+      <InstalarApp />
     </div>
   )
 }
