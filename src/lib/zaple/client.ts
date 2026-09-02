@@ -107,3 +107,5 @@ export const zaplePost = <T>(caminho: string, corpo: unknown, params?: Params) =
 
 export const zaplePut = <T>(caminho: string, corpo: unknown) =>
   requisitar<T>('PUT', caminho, corpo)
+
+export const zapleDelete = <T>(caminho: string) => requisitar<T>('DELETE', caminho)

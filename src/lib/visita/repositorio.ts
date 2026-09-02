@@ -271,6 +271,28 @@ export async function resumoPorVendedor(
  * Sem este caminho, quem abrisse a antiga ficaria num beco: vê que foi
  * empurrada, mas não tem como chegar até a que vale.
  */
+/**
+ * Tira a visita do banco. Sem lixeira e sem volta.
+ *
+ * O apagar existe porque marcar visita errada acontece — no bolso, no carro,
+ * na pressa — e um cancelamento que nunca houve polui o relatório tanto quanto
+ * a visita que faltou. Cancelar já existe e serve para a visita que não vai
+ * acontecer; apagar serve para a que nunca deveria ter sido criada.
+ *
+ * A linha some inteira em vez de virar um registro escondido: um "apagado"
+ * guardado no banco reaparece em toda consulta nova que alguém escrever sem
+ * lembrar de filtrá-lo, e o relatório volta a mentir por um caminho diferente.
+ *
+ * Quem pode fazer isso é decidido em `permissoes.ts`, antes de chegar aqui.
+ */
+export async function apagarVisita(db: BancoVisita, id: string): Promise<Visita | null> {
+  // `origem_id` não é chave estrangeira de propósito: apagar a visita nova de
+  // um reagendamento não pode arrastar a antiga junto nem falhar por causa
+  // dela. A tela de detalhe já aguenta não encontrar substituta.
+  const [apagada] = await db.delete(visita).where(eq(visita.id, id)).returning()
+  return apagada ?? null
+}
+
 export async function buscarSubstituta(db: BancoVisita, id: string): Promise<Visita | null> {
   const [achada] = await db.select().from(visita).where(eq(visita.origemId, id)).limit(1)
   return achada ?? null
@@ -282,6 +304,9 @@ export type EdicaoVisita = {
   descricao?: string | null
   tipo?: TipoVisita
   data?: string
+  /** Trocar o cliente move os dois juntos: o id e o nome congelado. */
+  contatoId?: string
+  contatoNome?: string
 }
 
 export async function editarVisita(
@@ -294,6 +319,8 @@ export async function editarVisita(
   if (patch.descricao !== undefined) valores.descricao = patch.descricao
   if (patch.tipo !== undefined) valores.tipo = patch.tipo
   if (patch.data !== undefined) valores.data = patch.data
+  if (patch.contatoId !== undefined) valores.contatoId = patch.contatoId
+  if (patch.contatoNome !== undefined) valores.contatoNome = patch.contatoNome
   if (Object.keys(valores).length === 0) return buscarVisita(db, id)
 
   valores.atualizadaEm = new Date()

@@ -1,4 +1,5 @@
-import { zapleGet, zaplePost, zaplePut } from './client'
+import { zapleGet, zaplePost, zaplePut, zapleDelete } from './client'
+import { ZapleError } from './erros'
 import { painelId } from './painel'
 import type { Pagina, Visita } from './tipos'
 
@@ -166,4 +167,23 @@ export function moverEtapa(id: string, etapaId: string): Promise<Visita> {
  */
 export async function gravarNota(cardId: string, texto: string): Promise<void> {
   await zaplePost(`/crm/v1/panel/card/${cardId}/note`, { text: texto })
+}
+
+/**
+ * Apaga o card espelho.
+ *
+ * Só é chamado quando a visita é apagada aqui: um card sem visita
+ * correspondente é pior que card nenhum, porque o painel do CRM passa a
+ * mostrar trabalho que não existe.
+ *
+ * Card que já não está lá não é erro. Pode ter sido apagado por alguém no
+ * próprio CRM, e o desfecho desejado — não haver card — já aconteceu.
+ */
+export async function apagarCard(cardId: string): Promise<void> {
+  try {
+    await zapleDelete(`/crm/v2/panel/card/${cardId}`)
+  } catch (erro) {
+    if (erro instanceof ZapleError && erro.naoEncontrado) return
+    throw erro
+  }
 }

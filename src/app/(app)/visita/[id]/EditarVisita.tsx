@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { erroDaResposta } from '@/lib/api/cliente'
 import type { Visita } from '@/lib/db'
+import type { Contato } from '@/lib/zaple/tipos'
 import { TIPOS_VISITA } from '@/lib/visita/tipos'
+import { EscolherCliente } from '@/components/EscolherCliente'
 
 /**
  * Editar o que ainda não aconteceu.
@@ -19,10 +21,18 @@ export function EditarVisita({ visita }: { visita: Visita }) {
   const [descricao, setDescricao] = useState(visita.descricao ?? '')
   const [tipo, setTipo] = useState(visita.tipo)
   const [data, setData] = useState(visita.data)
+  const [cliente, setCliente] = useState<{ id: string; nome: string }>({
+    id: visita.contatoId,
+    nome: visita.contatoNome,
+  })
+  const [trocandoCliente, setTrocandoCliente] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
+  // Data e cliente são histórico depois que a visita fecha: ela aconteceu
+  // naquele dia, com aquele cliente. Mudar pede reabrir antes.
   const podeMudarData = visita.status === 'a_fazer'
+  const trocouCliente = cliente.id !== visita.contatoId
 
   async function salvar() {
     setOcupado(true)
@@ -36,6 +46,10 @@ export function EditarVisita({ visita }: { visita: Visita }) {
           descricao: descricao.trim() || null,
           tipo,
           ...(podeMudarData ? { data } : {}),
+          // Os dois viajam juntos ou nenhum: a rota recusa um sem o outro,
+          // porque a visita apontando para um cliente e exibindo outro é o
+          // pior dos dois mundos.
+          ...(trocouCliente ? { contatoId: cliente.id, contatoNome: cliente.nome } : {}),
         }),
       })
       if (!r.ok) {
@@ -84,6 +98,48 @@ export function EditarVisita({ visita }: { visita: Visita }) {
           {erro}
         </p>
       )}
+
+      {/* O cliente primeiro: quando a visita foi lançada na ficha errada, é
+          isso que a pessoa veio corrigir, e vir depois do título faria ela
+          achar que não dá. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-semibold">Cliente</span>
+
+        {trocandoCliente ? (
+          <EscolherCliente
+            aoEscolher={(c: Contato) => {
+              setCliente({ id: c.id, nome: c.nome })
+              setTrocandoCliente(false)
+            }}
+            aoCancelar={() => setTrocandoCliente(false)}
+          />
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200">
+            <span className="min-w-0 truncate font-semibold">
+              {cliente.nome}
+              {trocouCliente && (
+                <span className="ml-2 text-xs font-bold uppercase tracking-wide text-fazer">
+                  trocado
+                </span>
+              )}
+            </span>
+
+            {podeMudarData ? (
+              <button
+                type="button"
+                onClick={() => setTrocandoCliente(true)}
+                className="shrink-0 text-sm font-semibold text-fazer underline-offset-4 hover:underline"
+              >
+                Trocar
+              </button>
+            ) : (
+              <span className="shrink-0 text-xs text-slate-500">
+                reabra a visita para trocar
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-semibold">Título</span>

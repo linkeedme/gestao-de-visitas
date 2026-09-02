@@ -10,6 +10,8 @@ import {
   reagendar,
   listarNaoSincronizadas,
   marcarSincronizada,
+  apagarVisita,
+  buscarSubstituta,
 } from '@/lib/visita/repositorio'
 import { criarUsuarioDeTeste as criarOutroUsuario } from '../apoio/banco'
 
@@ -409,5 +411,36 @@ describe('contarPorDia', () => {
     const [dia] = await contarPorDia(banco.db, { de: '2026-08-24', ate: '2026-08-30', usuarioId })
 
     expect(dia.aFazer).toBe(1)
+  })
+})
+
+describe('apagarVisita', () => {
+  it('tira a linha do banco de vez', async () => {
+    const v = await criarVisita(banco.db, entrada())
+
+    const apagada = await apagarVisita(banco.db, v.id)
+
+    expect(apagada?.id).toBe(v.id)
+    expect(await buscarVisita(banco.db, v.id)).toBeNull()
+  })
+
+  it('devolve nulo quando a visita já não existe', async () => {
+    expect(await apagarVisita(banco.db, '11111111-1111-1111-1111-111111111111')).toBeNull()
+  })
+
+  /**
+   * Reagendar deixa a visita fechada apontando para a nova. Apagar a nova não
+   * pode levar a antiga junto nem travar por causa dela: a tela de detalhe
+   * procura a substituta e precisa aguentar não achar mais nenhuma.
+   */
+  it('não arrasta a visita de origem junto', async () => {
+    const original = await criarVisita(banco.db, entrada())
+    const r = await reagendar(banco.db, original.id, '2026-09-15')
+
+    await apagarVisita(banco.db, r!.nova.id)
+
+    const antiga = await buscarVisita(banco.db, original.id)
+    expect(antiga).not.toBeNull()
+    expect(await buscarSubstituta(banco.db, original.id)).toBeNull()
   })
 })

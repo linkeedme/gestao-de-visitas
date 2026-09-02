@@ -1,0 +1,27 @@
+import type { Visita } from '@/lib/db'
+
+/**
+ * Quem pode apagar uma visita, e qual.
+ *
+ * Apagar é a única ação do app sem volta: não há lixeira, e a linha sai do
+ * banco. Por isso a regra é mais apertada que a de editar, e mora aqui em vez
+ * de espalhada entre a rota e a tela — as duas precisam da mesma resposta, uma
+ * para recusar e outra para nem oferecer o botão.
+ *
+ * O gestor apaga qualquer uma: é quem administra a operação e quem responde
+ * pelo que o relatório mostra.
+ *
+ * O vendedor apaga só o que é dele e só o que ainda não aconteceu. Marcar por
+ * engano acontece — no bolso, no carro, na pressa — e desfazer o próprio erro
+ * antes da visita não tira nada de ninguém. Depois de fechada, a visita virou
+ * histórico que o gestor já leu, e apagar mudaria um número depois de ele ter
+ * sido usado numa conversa com a equipe. Aí passa pelo gestor.
+ */
+export function podeApagar(
+  usuario: { id: string; papel: 'gestor' | 'vendedor' },
+  visita: Pick<Visita, 'usuarioId' | 'status'>
+): boolean {
+  if (usuario.papel === 'gestor') return true
+  if (visita.usuarioId !== usuario.id) return false
+  return visita.status === 'a_fazer'
+}

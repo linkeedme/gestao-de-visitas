@@ -4,6 +4,8 @@ import { exigirUsuario } from '@/lib/auth/atual'
 import { buscarVisita, buscarSubstituta, historicoDoContato, db } from '@/lib/visita/repositorio'
 import { hoje, formatarDia } from '@/lib/visita/datas'
 import { EditarVisita } from './EditarVisita'
+import { ApagarVisita } from './ApagarVisita'
+import { podeApagar } from '@/lib/visita/permissoes'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 
 export const dynamic = 'force-dynamic'
@@ -139,6 +141,11 @@ export default async function DetalheVisita({ params }: PageProps<'/visita/[id]'
           )
         })}
       </section>
+
+      {/* No fim da tela, e só para quem pode: oferecer o botão e recusar
+          depois seria prometer o que não se cumpre. A mesma regra decide aqui
+          e na rota — vem de `permissoes.ts` para as duas não divergirem. */}
+      {podeApagar(u, visita) && <ApagarVisita visita={visita} />}
     </div>
   )
 }
