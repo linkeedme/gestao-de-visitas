@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { podeApagar } from '@/lib/visita/permissoes'
+import { podeApagar, podeEditarFechada } from '@/lib/visita/permissoes'
 
 const GESTOR = { id: 'g1', papel: 'gestor' as const }
 const VENDEDOR = { id: 'v1', papel: 'vendedor' as const }
@@ -37,5 +37,25 @@ describe('podeApagar', () => {
     expect(podeApagar(VENDEDOR, visita('v1', 'realizada'))).toBe(false)
     expect(podeApagar(VENDEDOR, visita('v1', 'cancelada'))).toBe(false)
     expect(podeApagar(VENDEDOR, visita('v1', 'reagendada'))).toBe(false)
+  })
+})
+
+describe('podeEditarFechada', () => {
+  /**
+   * Visita lançada na ficha do cliente errado precisa ser corrigida, e
+   * obrigar a reabrir e fechar de novo para isso mexe no status por um motivo
+   * que não é de status — a visita aconteceu, e continua tendo acontecido
+   * enquanto o nome é consertado.
+   */
+  it('deixa o gestor corrigir visita que já aconteceu', () => {
+    expect(podeEditarFechada(GESTOR)).toBe(true)
+  })
+
+  /**
+   * Para o vendedor a trava continua: o relatório do gestor já leu aquele
+   * número, e reabrir é o caminho que deixa a mudança visível.
+   */
+  it('não deixa o vendedor', () => {
+    expect(podeEditarFechada(VENDEDOR)).toBe(false)
   })
 })

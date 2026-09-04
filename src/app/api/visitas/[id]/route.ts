@@ -3,7 +3,7 @@ import { exigirUsuario } from '@/lib/auth/atual'
 import { buscarVisita, editarVisita, apagarVisita, db } from '@/lib/visita/repositorio'
 import { apagarCard } from '@/lib/zaple/visitas'
 import { espelharNoZaple } from '@/lib/api/espelho'
-import { podeApagar } from '@/lib/visita/permissoes'
+import { podeApagar, podeEditarFechada } from '@/lib/visita/permissoes'
 import { VALORES_TIPO } from '@/lib/visita/tipos'
 import { erroDeValidacao } from '@/lib/api/erros'
 
@@ -64,9 +64,15 @@ export async function PATCH(req: Request, { params }: RouteContext<'/api/visitas
   }
 
   // Data e cliente de uma visita fechada são histórico: ela aconteceu naquele
-  // dia, com aquele cliente. Trocar depois reescreveria o que o relatório do
-  // gestor já leu. Corrigir pede reabrir antes.
-  if (atual.status !== 'a_fazer') {
+  // dia, com aquele cliente. Para o vendedor, trocar depois reescreveria o que
+  // o relatório do gestor já leu, e reabrir é o caminho porque deixa a mudança
+  // visível.
+  //
+  // O gestor não passa por aqui: é quem responde pelo relatório, e obrigá-lo a
+  // reabrir e fechar de novo só para consertar o nome do cliente mexeria no
+  // status por um motivo que não é de status — deixando o rastro de uma visita
+  // reaberta que nunca foi.
+  if (atual.status !== 'a_fazer' && !podeEditarFechada(u)) {
     const oQue = analisado.data.data ? 'a data' : analisado.data.contatoId ? 'o cliente' : null
     if (oQue) {
       return Response.json({ erro: `Para mudar ${oQue}, reabra a visita antes.` }, { status: 409 })

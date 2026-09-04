@@ -100,3 +100,43 @@ describe('PATCH /api/visitas/[id] — trocar o cliente', () => {
     expect(r.status).toBe(400)
   })
 })
+
+describe('PATCH /api/visitas/[id] — o gestor corrige o que já aconteceu', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    exigirUsuario.mockReset().mockResolvedValue({ id: 'g1', papel: 'gestor' })
+    buscarVisita.mockReset().mockResolvedValue({
+      id: 'v1',
+      usuarioId: 'outro',
+      status: 'realizada',
+      contatoId: '22222222-2222-2222-2222-222222222222',
+      contatoNome: 'AUTOCAR',
+    })
+    editarVisita.mockReset().mockResolvedValue({ id: 'v1' })
+    espelharNoZaple.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('troca o cliente de visita realizada sem exigir reabrir', async () => {
+    const r = await patch({ contatoId: CONTATO, contatoNome: '2F AUTO CENTER' })
+
+    expect(r.status).toBe(200)
+    expect(editarVisita).toHaveBeenCalledWith(
+      {},
+      'v1',
+      expect.objectContaining({ contatoId: CONTATO, contatoNome: '2F AUTO CENTER' })
+    )
+  })
+
+  it('corrige também a data de visita realizada', async () => {
+    const r = await patch({ data: '2026-09-01' })
+
+    expect(r.status).toBe(200)
+  })
+
+  /** A correção precisa chegar ao card, senão o CRM segue com o nome errado. */
+  it('manda a correção para o CRM', async () => {
+    await patch({ contatoId: CONTATO, contatoNome: '2F AUTO CENTER' })
+
+    expect(espelharNoZaple).toHaveBeenCalled()
+  })
+})

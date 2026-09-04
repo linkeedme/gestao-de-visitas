@@ -5,11 +5,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // import estático é hoisted pelo próprio ESM para antes de qualquer const,
 // então os mocks precisam ser inicializados nesse mesmo ponto ou a primeira
 // leitura de `criarCardZaple` etc. explode em "before initialization".
-const { criarCardZaple, moverEtapa, listarEtapas, gravarNota } = vi.hoisted(() => ({
+const { criarCardZaple, moverEtapa, listarEtapas, gravarNota, atualizarCard } = vi.hoisted(() => ({
   criarCardZaple: vi.fn(),
   moverEtapa: vi.fn(),
   listarEtapas: vi.fn(),
   gravarNota: vi.fn(),
+  atualizarCard: vi.fn(),
 }))
 
 vi.mock('@/lib/zaple/visitas', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/lib/zaple/visitas', () => ({
   listarVisitas: vi.fn(),
   obterVisita: vi.fn(),
   gravarNota,
+  atualizarVisita: atualizarCard,
 }))
 vi.mock('@/lib/zaple/painel', () => ({ listarEtapas, painelId: () => 'p1' }))
 
@@ -49,6 +51,8 @@ beforeEach(async () => {
   gravarNota.mockResolvedValue({})
   listarEtapas.mockReset()
   listarEtapas.mockResolvedValue(ETAPAS)
+  atualizarCard.mockReset()
+  atualizarCard.mockResolvedValue({})
 })
 
 afterEach(async () => {
@@ -175,5 +179,86 @@ describe('sincronizar', () => {
 
     // O texto não mudou: o Zaple não pode receber a nota de novo.
     expect(gravarNota).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('o que vai para o card do CRM', () => {
+  /**
+   * O card nascia com o título da visita, que as pessoas preenchem com o
+   * motivo — "Levar tabela nova", "Cobrar pedido". No painel do CRM, que é
+   * organizado por cliente, isso vira uma coluna de frases soltas em que
+   * ninguém acha a empresa que procura.
+   */
+  it('usa o nome do cliente como título do card', async () => {
+    const v = await criarVisita(banco.db, {
+      ...nova(),
+      contatoNome: '2F AUTO CENTER',
+      titulo: 'Levar tabela nova',
+    })
+
+    await sincronizar(banco.db, v)
+
+    expect(criarCardZaple).toHaveBeenCalledWith(
+      expect.objectContaining({ titulo: '2F AUTO CENTER' })
+    )
+  })
+
+  /** O motivo continua indo — para a descrição, que é onde se lê texto. */
+  it('manda o motivo da visita na descrição do card', async () => {
+    const v = await criarVisita(banco.db, {
+      ...nova(),
+      titulo: 'Levar tabela nova',
+      descricao: 'Cliente pediu a tabela de setembro.',
+    })
+
+    await sincronizar(banco.db, v)
+
+    const entrada = criarCardZaple.mock.calls[0][0]
+    expect(entrada.descricao).toContain('Cliente pediu a tabela de setembro.')
+  })
+
+  it('vincula o cliente ao card', async () => {
+    const v = await criarVisita(banco.db, nova())
+
+    await sincronizar(banco.db, v)
+
+    expect(criarCardZaple).toHaveBeenCalledWith(
+      expect.objectContaining({ contatoIds: ['22222222-2222-2222-2222-222222222222'] })
+    )
+  })
+
+  /**
+   * Trocar o cliente de uma visita já espelhada precisa chegar ao CRM: sem
+   * isso o card continua na ficha da empresa errada, que é exatamente o erro
+   * que a troca existe para consertar. Antes o sincronismo só gravava nota e
+   * movia etapa quando o card já existia — o conteúdo nunca era revisto.
+   */
+  it('atualiza título e cliente do card quando a visita já tem card', async () => {
+    const v = await criarVisita(banco.db, nova())
+    await sincronizar(banco.db, v)
+
+    const comCard = await buscarVisita(banco.db, v.id)
+    const trocada = {
+      ...comCard!,
+      contatoNome: 'NOVA EMPRESA',
+      contatoId: '55555555-5555-4555-8555-555555555555',
+    }
+    await sincronizar(banco.db, trocada)
+
+    expect(atualizarCard).toHaveBeenCalledWith(
+      '44444444-4444-4444-4444-444444444444',
+      expect.objectContaining({
+        titulo: 'NOVA EMPRESA',
+        contatoIds: ['55555555-5555-4555-8555-555555555555'],
+      })
+    )
+  })
+
+  it('não chama a atualização quando o card acabou de ser criado', async () => {
+    const v = await criarVisita(banco.db, nova())
+
+    await sincronizar(banco.db, v)
+
+    expect(atualizarCard).not.toHaveBeenCalled()
   })
 })

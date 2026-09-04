@@ -14,7 +14,7 @@ import { EscolherCliente } from '@/components/EscolherCliente'
  * aconteceu no dia em que aconteceu, e deixar mudar isso depois reescreveria
  * o histórico que o relatório do gestor lê.
  */
-export function EditarVisita({ visita }: { visita: Visita }) {
+export function EditarVisita({ visita, ehGestor }: { visita: Visita; ehGestor: boolean }) {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [titulo, setTitulo] = useState(visita.titulo)
@@ -30,8 +30,13 @@ export function EditarVisita({ visita }: { visita: Visita }) {
   const [erro, setErro] = useState<string | null>(null)
 
   // Data e cliente são histórico depois que a visita fecha: ela aconteceu
-  // naquele dia, com aquele cliente. Mudar pede reabrir antes.
-  const podeMudarData = visita.status === 'a_fazer'
+  // naquele dia, com aquele cliente. Para o vendedor, mudar pede reabrir
+  // antes — é o que deixa a mudança visível.
+  //
+  // O gestor corrige direto: é quem responde pelo relatório, e reabrir só
+  // para consertar o nome do cliente mexeria no status por um motivo que não
+  // é de status, deixando o rastro de uma visita reaberta que nunca foi.
+  const podeMudarData = visita.status === 'a_fazer' || ehGestor
   const trocouCliente = cliente.id !== visita.contatoId
 
   async function salvar() {

@@ -1,8 +1,41 @@
-import { criarVisita as criarCardZaple, moverEtapa, gravarNota } from '@/lib/zaple/visitas'
+import {
+  criarVisita as criarCardZaple,
+  atualizarVisita as atualizarCard,
+  moverEtapa,
+  gravarNota,
+} from '@/lib/zaple/visitas'
 import { listarEtapas } from '@/lib/zaple/painel'
 import { marcarSincronizada, marcarCard, type BancoVisita } from './repositorio'
 import { etapaParaStatus } from './etapas'
+import { rotuloDoTipo } from './tipos'
 import type { Visita } from '@/lib/db'
+
+/**
+ * O título do card é o nome do cliente. Sempre.
+ *
+ * Antes ia o título da visita, que é campo livre e que as pessoas preenchem
+ * com o motivo — "Levar tabela nova", "Cobrar pedido". O painel do CRM é
+ * organizado por cliente, e uma coluna de frases soltas não deixa ninguém
+ * achar a empresa que procura.
+ */
+function tituloDoCard(v: Visita): string {
+  return v.contatoNome
+}
+
+/**
+ * A descrição carrega o resto: o motivo escrito antes de ir, o tipo da visita
+ * e o título quando ele disser algo além do nome do cliente.
+ *
+ * O título da visita entra aqui, e não se perde, porque foi onde as pessoas
+ * escreveram o motivo esse tempo todo — jogá-lo fora ao mudar o campo do card
+ * apagaria informação que já está lançada.
+ */
+function descricaoDoCard(v: Visita): string {
+  const partes = [rotuloDoTipo(v.tipo)]
+  if (v.titulo && v.titulo.trim() !== v.contatoNome.trim()) partes.push(v.titulo.trim())
+  if (v.descricao?.trim()) partes.push(v.descricao.trim())
+  return partes.join('\n')
+}
 
 /**
  * Espelha a visita no Zaple. **Nunca lança.**
@@ -34,7 +67,8 @@ export async function sincronizar(
 
       const card = await criarCardZaple({
         etapaId: etapaInicial.id,
-        titulo: v.titulo,
+        titulo: tituloDoCard(v),
+        descricao: descricaoDoCard(v),
         responsavelId: v.zapleUserId,
         contatoIds: [v.contatoId],
         // Meio-dia UTC: com 00:00 o fuso do Brasil empurraria o card para o
@@ -45,6 +79,19 @@ export async function sincronizar(
       // Persistir agora, e não só no fim: se a nota ou a movimentação falhar,
       // a próxima tentativa reusa este card em vez de criar outro.
       await marcarCard(db, v.id, cardId)
+    } else {
+      // Card que já existe tem o conteúdo revisto, e não só a etapa movida.
+      //
+      // Sem isto, trocar o cliente de uma visita nunca chegava ao CRM: o card
+      // continuava na ficha da empresa errada, que é justamente o erro que a
+      // troca existe para consertar. O mesmo vale para o título e para a data
+      // corrigidos depois.
+      await atualizarCard(cardId, {
+        titulo: tituloDoCard(v),
+        descricao: descricaoDoCard(v),
+        contatoIds: [v.contatoId],
+        prazo: `${v.data}T12:00:00.000Z`,
+      })
     }
 
     // Só grava se o texto mudou desde a última vez que chegou lá.

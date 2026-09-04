@@ -5,6 +5,7 @@ import { buscarVisita, buscarSubstituta, historicoDoContato, db } from '@/lib/vi
 import { hoje, formatarDia } from '@/lib/visita/datas'
 import { EditarVisita } from './EditarVisita'
 import { ApagarVisita } from './ApagarVisita'
+import { ReabrirVisita } from './ReabrirVisita'
 import { podeApagar } from '@/lib/visita/permissoes'
 import { rotuloDoTipo } from '@/lib/visita/tipos'
 
@@ -99,7 +100,12 @@ export default async function DetalheVisita({ params }: PageProps<'/visita/[id]'
         </p>
       )}
 
-      <EditarVisita visita={visita} />
+      <div className="flex flex-wrap items-center gap-2">
+        <EditarVisita visita={visita} ehGestor={u.papel === 'gestor'} />
+        {/* Ao lado de editar, e não escondido no fim: quem abre a visita e vê
+            que fechou a errada precisa achar o desfazer sem sair da tela. */}
+        <ReabrirVisita visita={visita} />
+      </div>
 
       <section className="flex flex-col gap-2">
         <h2 className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">

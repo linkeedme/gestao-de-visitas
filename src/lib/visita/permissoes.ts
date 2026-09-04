@@ -25,3 +25,21 @@ export function podeApagar(
   if (visita.usuarioId !== usuario.id) return false
   return visita.status === 'a_fazer'
 }
+
+/**
+ * Quem corrige uma visita que já aconteceu, sem reabrir antes.
+ *
+ * A trava existe por um bom motivo: data e cliente são o histórico que o
+ * relatório do gestor já leu, e mudá-los depois altera um número que pode ter
+ * sido usado numa conversa com a equipe. Para o vendedor ela continua valendo,
+ * e reabrir é o caminho — porque deixa a mudança visível.
+ *
+ * Mas o gestor é justamente quem responde por esse relatório, e obrigá-lo a
+ * reabrir e fechar de novo só para consertar o nome do cliente mexe no status
+ * por um motivo que não é de status: a visita aconteceu, e continua tendo
+ * acontecido enquanto o nome é corrigido. O caminho longo ainda deixava o
+ * rastro errado — uma visita que apareceu como reaberta sem nunca ter sido.
+ */
+export function podeEditarFechada(usuario: { papel: 'gestor' | 'vendedor' }): boolean {
+  return usuario.papel === 'gestor'
+}
